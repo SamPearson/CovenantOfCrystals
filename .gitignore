@@ -1,3 +1,6 @@
+# Don't put IDE files in the repo
+.idea
+
 node_modules
 dist
 .vite
