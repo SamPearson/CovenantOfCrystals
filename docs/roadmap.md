@@ -17,15 +17,16 @@ working document — update it as decisions land.
 - **Exit criteria:** met — `npm run test` passes, `npm run build` typechecks +
   bundles, `npm run dev` serves the BootScene at `http://localhost:8080`.
 
-### Phase 1 — Data layer & meta screens
+### Phase 1 — Data layer & meta screens ✓ (done)
 - [x] Data loaders + definitions (classes, skills, items, enemies) — stub data
 - [x] Durability (`permanent` / `runsRemaining`) in the data model and UI
 - [x] SaveManager (local profiles / mock API, versioned) + profile creation
-- [ ] Meta UI: boxes (10 × 30), party selection (4 max), equip screen, inventory
+- [x] Meta UI: boxes (10 × 30), party selection (4 max), equip screen, inventory
 - [x] Core store with actions (addToBox, equip, startRun) — store + `addToBox`/`equip` done; `startRun` lands with the Phase 3 run loop
-- **Exit criteria:** a character can be moved into a party and equipped;
-  state survives reload. Docs: `metagame.md`, `party-and-equipment.md`,
-  `durability.md`, `data-model.md`.
+- **Exit criteria:** met — a character can be moved into a party and
+  equipped; state survives reload (verified end-to-end in-browser).
+  Docs: `metagame.md`, `party-and-equipment.md`, `durability.md`,
+  `data-model.md`.
 
 ### Phase 2 — Combat engine prototype
 - [ ] Turn engine (speed order, actions, MP; MP regens at rest nodes only)

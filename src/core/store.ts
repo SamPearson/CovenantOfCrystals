@@ -8,6 +8,7 @@
 import type { SaveFile, PlayerProfile } from './types'
 import { loadSave, writeSave, createNewSave } from './save.service'
 import { ensureBoxCount } from './boxes'
+import { seedStarterRoster } from './starter'
 
 type Listener = () => void
 
@@ -15,9 +16,15 @@ let current: SaveFile
 let listeners = new Set<Listener>()
 
 export function initStore(): SaveFile {
-  current = loadSave() ?? createNewSave()
-  ensureBoxCount(current.profile)
-  writeSave(current)
+  const existing = loadSave()
+  if (existing) {
+    current = existing
+  } else {
+    current = createNewSave()
+    ensureBoxCount(current.profile)
+    seedStarterRoster(current.profile)
+    writeSave(current)
+  }
   return current
 }
 

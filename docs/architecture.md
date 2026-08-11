@@ -36,6 +36,10 @@ src/
 │   │   ├── BattleScene.ts     # battle board, turn execution, animations
 │   │   └── ResultScene.ts     # run end, rewards, payout
 │   └── ui/                    # shared UI widgets (panels, buttons, lists)
+│       ├── theme.ts           # single configurable style source (colors/fonts/spacing)
+│       ├── widgets.ts         # uiText, panels, buttons, badges (top-left anchored)
+│       ├── format.ts          # pure text-format helpers (unit-tested)
+│       └── panels/            # meta panels: boxes, party, equip, inventory
 ├── core/                      # pure logic, no Phaser deps (unit-testable)
 │   ├── combat/                # turn engine, damage, status, autobattle AI
 │   ├── meta/                  # roster, boxes, party, inventory, currency
