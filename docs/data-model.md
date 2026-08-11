@@ -36,10 +36,9 @@ interface Character {
   name: string;               // auto-generated, player-editable
   level: number;
   xp: number;                 // xp-to-next derived from a curve by level
-  base: StatBlock;            // from class + level curve
   gear: {
-    weapon?: string;          // itemId → ItemDef (type: 'weapon')
-    armor?: string;           // itemId → ItemDef (type: 'armor')
+    weapon?: GearInstance;    // equipped gear instance (see §4)
+    armor?: GearInstance;     // equipped gear instance (see §4)
   };                          // no accessory slot in v1 (locked)
   learnedSkills: string[];    // skillIds
   loadout: string[];          // equipped skillIds (e.g., max 4)
@@ -51,6 +50,13 @@ interface Character {
   };
 }
 ```
+
+> **Gear model decision (2026):** `gear` references **unique gear instances**
+> (`GearInstance`), not plain itemIds. This matches `durability.md` §7 —
+> equipped gear carries its own durability, and duplicates of the same item
+> stay distinguishable. The instance is removed from the inventory while
+> equipped and returned to it on unequip or permadeath (`durability.md` §4).
+
 
 ---
 
@@ -217,7 +223,8 @@ interface SaveFile {
 - **IDs are strings** everywhere; data defs use string IDs, instances use
   UUIDs.
 - **No derived state is stored** — current HP/MP live only in `BattleState`;
-  save files never persist mid-battle (see `autobattle-and-idle.md`).
+  base stats are computed from class + level (no `base` field persisted).
+  Save files never persist mid-battle (see `autobattle-and-idle.md`).
 - **Gear on a character is a snapshot** during a run; changes to the
   persistent inventory don't mutate a run in progress.
 - **Durability ticks at run resolution**: `runsRemaining` decrements once per

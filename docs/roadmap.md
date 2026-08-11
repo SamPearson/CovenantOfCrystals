@@ -18,11 +18,11 @@ working document — update it as decisions land.
   bundles, `npm run dev` serves the BootScene at `http://localhost:8080`.
 
 ### Phase 1 — Data layer & meta screens
-- [ ] Data loaders + definitions (classes, skills, items, enemies) — stub data
-- [ ] Durability (`permanent` / `runsRemaining`) in the data model and UI
-- [ ] SaveManager (local profiles / mock API, versioned) + profile creation
+- [x] Data loaders + definitions (classes, skills, items, enemies) — stub data
+- [x] Durability (`permanent` / `runsRemaining`) in the data model and UI
+- [x] SaveManager (local profiles / mock API, versioned) + profile creation
 - [ ] Meta UI: boxes (10 × 30), party selection (4 max), equip screen, inventory
-- [ ] Core store with actions (addToBox, equip, startRun)
+- [x] Core store with actions (addToBox, equip, startRun) — store + `addToBox`/`equip` done; `startRun` lands with the Phase 3 run loop
 - **Exit criteria:** a character can be moved into a party and equipped;
   state survives reload. Docs: `metagame.md`, `party-and-equipment.md`,
   `durability.md`, `data-model.md`.
@@ -113,6 +113,8 @@ working document — update it as decisions land.
 | 24 | Player-authored autobattle scripts? | **Not yet** — curated presets only (`autobattle-and-idle.md` §2) |
 | 25 | Premium currency? | **No** — gold only (`metagame.md` §5) |
 | 26 | Data source? | **Hardcoded JSON blobs → mock API → real API** (`architecture.md` §6) |
+| 27 | How does `Character.gear` reference equipment? | **Unique gear instances** (`GearInstance`), matching inventory + per-instance durability (`data-model.md` §2) |
+| 28 | State library? | **None yet** — plain in-memory store (`src/core/store.ts`) over `save.service.ts`; revisit if UI grows (`architecture.md` §6) |
 
 ### Still open
 
