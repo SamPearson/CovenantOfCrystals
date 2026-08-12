@@ -1,11 +1,21 @@
 import { Panel } from './panel'
 import { THEME } from '../theme'
 import { uiText, makeButton, makeSubpanel } from '../widgets'
-import { durabilityLabel, itemTypeLabel, truncate } from '../format'
+import { durabilityLabel, itemTypeLabel, statDeltaText, truncate } from '../format'
 import { getProfile, mutate } from '../../../core/store'
-import { equipGear, unequipSlot } from '../../../core/equip'
-import { getClass, getItem, derivedStats } from '../../../core'
-import type { PlayerProfile } from '../../../core'
+import { equipGear, unequipSlot, gearStatDeltas, type StatDelta } from '../../../core/equip'
+import { getClass, getItem, derivedStats, type PlayerProfile, type StatKey } from '../../../core'
+
+const STAT_ORDER: StatKey[] = ['hp', 'atk', 'def', 'mag', 'res', 'spd']
+
+function absoluteBonuses(bonus: Partial<Record<StatKey, number>> | undefined): StatDelta[] {
+  const out: StatDelta[] = []
+  for (const key of STAT_ORDER) {
+    const value = bonus?.[key] ?? 0
+    if (value !== 0) out.push({ key, delta: value })
+  }
+  return out
+}
 
 function listCharacters(profile: PlayerProfile): string[] {
   const ids: string[] = []
@@ -38,7 +48,7 @@ export class EquipPanel extends Panel {
     const listX = pad
     const listY = pad
 
-    uiText(this.scene, listX, listY - 2, 'CHARACTERS', { size: 'xs', color: THEME.colors.accent }, content)
+    uiText(this.scene, listX, listY - 2, 'CHARACTERS', { size: 'xs', color: THEME.colors.accentBlue }, content)
     const rowH = 34
     let ry = listY + 18
     for (const charId of listCharacters(profile)) {
@@ -68,7 +78,7 @@ export class EquipPanel extends Panel {
       const cls = getClass(c.classId)
       const stats = derivedStats(c)
 
-      uiText(this.scene, centerX, listY - 2, 'EQUIPMENT', { size: 'xs', color: THEME.colors.accent }, content)
+      uiText(this.scene, centerX, listY - 2, 'EQUIPMENT', { size: 'xs', color: THEME.colors.accentBlue }, content)
       uiText(this.scene, centerX, listY + 14, `${c.name} — ${cls.name} Lv ${c.level}`, { size: 'md' }, content)
 
       let sy = listY + 44
@@ -136,9 +146,9 @@ export class EquipPanel extends Panel {
 
     const gearX = centerX + centerW + 16
     const gearW = this.rect.w - gearX - pad
-    uiText(this.scene, gearX, listY - 2, 'INVENTORY GEAR', { size: 'xs', color: THEME.colors.accent }, content)
+    uiText(this.scene, gearX, listY - 2, 'INVENTORY GEAR', { size: 'xs', color: THEME.colors.accentBlue }, content)
 
-    const gearRowH = 40
+    const gearRowH = 56
     let gy = listY + 18
     const equippedBy = new Map<string, string>()
     for (const char of Object.values(profile.characters)) {
@@ -167,6 +177,30 @@ export class EquipPanel extends Panel {
         { size: 'xs', color: THEME.colors.textMuted },
         content,
       )
+
+      const selectedChar = this.selected ? profile.characters[this.selected] : null
+      const deltas = selectedChar
+        ? gearStatDeltas(selectedChar, item.id)
+        : absoluteBonuses(item.statBonus)
+      if (deltas.length > 0) {
+        let sx = gearX + 8
+        for (const d of deltas) {
+          const color =
+            d.delta > 0 ? THEME.colors.good : d.delta < 0 ? THEME.colors.bad : THEME.colors.textMuted
+          const txt = uiText(this.scene, sx, gy + 38, statDeltaText(d.delta, d.key), { size: 'xs', color }, content)
+          sx += txt.width + 10
+        }
+      } else {
+        uiText(
+          this.scene,
+          gearX + 8,
+          gy + 38,
+          'No stat change',
+          { size: 'xs', color: THEME.colors.textDim },
+          content,
+        )
+      }
+
       if (!onChar) {
         const hit = this.scene.add.rectangle(gearX + gearW / 2, gy + gearRowH / 2, gearW, gearRowH, 0x000000, 0)
         hit.setInteractive({ useHandCursor: true }).on('pointerdown', () => {

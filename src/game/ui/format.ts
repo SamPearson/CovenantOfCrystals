@@ -15,6 +15,12 @@ export function statLabel(key: StatKey): string {
   return key.toUpperCase()
 }
 
+/** Formats a stat change like `+10 ATK` / `-4 DEF` for gear previews. */
+export function statDeltaText(delta: number, key: StatKey): string {
+  const sign = delta >= 0 ? '+' : ''
+  return `${sign}${delta} ${key.toUpperCase()}`
+}
+
 export function statList(stats: StatBlock): { key: StatKey; value: number }[] {
   const order: StatKey[] = ['hp', 'atk', 'def', 'mag', 'res', 'spd']
   return order.map((key) => ({ key, value: stats[key] }))

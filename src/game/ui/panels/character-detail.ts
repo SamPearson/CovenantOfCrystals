@@ -1,11 +1,11 @@
 /**
  * Shared character detail view used by the Boxes and Party panels. Renders
- * into a parent container at local coordinates — no nested containers.
+ * into a scrollable region so long content (stats, skills) never overflows
+ * the panel. Action buttons are pinned to the bottom of the region.
  */
 
-import Phaser from 'phaser'
 import { THEME } from '../theme'
-import { uiText, makeButton, makeBadge, makeSubpanel } from '../widgets'
+import { uiText, makeButton, makeBadge, makeScrollRegion } from '../widgets'
 import {
   durabilityLabel,
   statLabel,
@@ -41,16 +41,19 @@ export function buildCharacterDetail(
   const stats = derivedStats(c)
   const pad = THEME.spacing.pad
   const textMuted = THEME.colors.textMuted
-  const accent = THEME.colors.accent
+  const heading = THEME.colors.accentBlue
 
-  makeSubpanel(scene, parent, x, y, w, h, { fillColor: THEME.colors.panel })
+  const region = makeScrollRegion(scene, parent, x, y, w, h, {
+    fillColor: THEME.colors.face,
+    strokeColor: THEME.colors.border,
+  })
+  const view = region.content
 
-  let yy = y + pad
+  let yy = pad
 
-  const name = uiText(scene, x + pad, yy, c.name, { size: 'lg' }, parent)
+  const name = uiText(scene, pad, yy, c.name, { size: 'lg' }, view)
   yy += name.height + 8
 
-  let bx = x + pad
   const badges = [
     { label: roleLabel(cls.role), color: textMuted },
     { label: elementLabel(cls.element), color: textMuted },
@@ -59,80 +62,83 @@ export function buildCharacterDetail(
       color: c.durability.kind === 'expires' ? THEME.colors.warn : THEME.colors.good,
     },
   ]
+  let bx = pad
   for (const b of badges) {
-    const badge = makeBadge(scene, bx, yy, b.label, b.color, { width: 74, height: 20 }, parent)
+    const badge = makeBadge(scene, bx, yy, b.label, b.color, {}, view)
     bx += badge.width + 6
   }
   yy += 26
 
   const meta = uiText(
     scene,
-    x + pad,
+    pad,
     yy,
     `${cls.name} · Lv ${c.level} · XP ${c.xp}`,
     { size: 'sm', color: textMuted },
-    parent,
+    view,
   )
   yy += meta.height + 12
 
-  uiText(scene, x + pad, yy, 'GEAR', { size: 'xs', color: accent }, parent)
+  uiText(scene, pad, yy, 'GEAR', { size: 'xs', color: heading }, view)
   yy += 16
   for (const slot of ['weapon', 'armor'] as const) {
     const g = c.gear[slot]
     if (g) {
       const item = getItem(g.itemId)
       const color = THEME.rarity[item.rarity]
-      uiText(scene, x + pad, yy, `${slot.toUpperCase()}  `, { size: 'sm', color: textMuted }, parent)
-      const itemText = uiText(scene, x + pad + 70, yy, item.name, { size: 'sm', color }, parent)
+      uiText(scene, pad, yy, `${slot.toUpperCase()}  `, { size: 'sm', color: textMuted }, view)
+      const itemText = uiText(scene, pad + 70, yy, item.name, { size: 'sm', color }, view)
       uiText(
         scene,
-        x + pad + 70 + itemText.width + 8,
+        pad + 70 + itemText.width + 8,
         yy,
         `(${durabilityLabel(g.durability)})`,
         { size: 'xs', color: textMuted },
-        parent,
+        view,
       )
     } else {
-      uiText(scene, x + pad, yy, `${slot.toUpperCase()}  —`, { size: 'sm', color: textMuted }, parent)
+      uiText(scene, pad, yy, `${slot.toUpperCase()}  —`, { size: 'sm', color: textMuted }, view)
     }
     yy += 20
   }
   yy += 8
 
-  uiText(scene, x + pad, yy, 'STATS', { size: 'xs', color: accent }, parent)
+  uiText(scene, pad, yy, 'STATS', { size: 'xs', color: heading }, view)
   yy += 16
   for (const s of statList(stats)) {
-    uiText(scene, x + pad, yy, statLabel(s.key), { size: 'sm', color: textMuted }, parent)
-    uiText(scene, x + w - pad, yy, String(s.value), { size: 'sm' }, parent).setOrigin(1, 0)
+    uiText(scene, pad, yy, statLabel(s.key), { size: 'sm', color: textMuted }, view)
+    uiText(scene, w - pad, yy, String(s.value), { size: 'sm' }, view).setOrigin(1, 0)
     yy += 19
   }
   yy += 8
 
-  uiText(scene, x + pad, yy, 'SKILLS', { size: 'xs', color: accent }, parent)
+  uiText(scene, pad, yy, 'SKILLS', { size: 'xs', color: heading }, view)
   yy += 16
   const loadout =
     c.loadout.length > 0 ? c.loadout.map((id) => getSkill(id).name).join(', ') : '—'
   const skills = uiText(
     scene,
-    x + pad,
+    pad,
     yy,
     loadout,
     { size: 'xs', color: textMuted, wordWrap: w - pad * 2 },
-    parent,
+    view,
   )
   yy += skills.height + 8
 
   uiText(
     scene,
-    x + pad,
+    pad,
     yy,
     `Runs ${c.earned.runs} · Wins ${c.earned.wins}`,
     { size: 'xs', color: textMuted },
-    parent,
+    view,
   )
+  yy += 12
 
-  let ax = x + pad
-  const ay = y + h - 46
+  // Footer: action buttons pinned to the bottom of the region (fixed layer).
+  const ay = h - 44
+  let ax = pad
   for (const action of actions) {
     const button = makeButton(
       scene,
@@ -141,9 +147,13 @@ export function buildCharacterDetail(
       action.label,
       action.onClick,
       { width: 112, height: 32, color: action.color, fontSize: 'sm' },
-      parent,
+      region.container,
     )
     if (action.disabled) button.setDisabled(true)
     ax += 120
   }
+
+  // Reserve room below the content so the last line can scroll clear of the
+  // pinned footer.
+  region.setContentHeight(yy + 52)
 }

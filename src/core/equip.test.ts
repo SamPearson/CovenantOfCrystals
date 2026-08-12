@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { createCharacter } from './character'
 import { createGearInstance, findGearById } from './inventory'
-import { equipGear, unequipSlot, slotForItemType } from './equip'
+import { equipGear, unequipSlot, slotForItemType, gearStatDeltas } from './equip'
 import { createRng } from './rng/rng'
 import type { PlayerProfile } from './types'
 
@@ -74,6 +74,44 @@ describe('equipGear', () => {
     const c = createCharacter({ classId: 'knight', rng })
     p.characters[c.id] = c
     expect(() => equipGear(p, c.id, 'ghost-gear')).toThrow(/not in inventory/)
+  })
+})
+
+describe('gearStatDeltas', () => {
+  it('reports absolute bonuses against an empty slot', () => {
+    const c = createCharacter({ classId: 'knight', rng })
+    expect(gearStatDeltas(c, 'iron_sword')).toEqual([{ key: 'atk', delta: 10 }])
+    expect(gearStatDeltas(c, 'chain_mail')).toEqual([
+      { key: 'hp', delta: 15 },
+      { key: 'def', delta: 12 },
+    ])
+  })
+
+  it('shows the change vs. currently equipped gear', () => {
+    const p = makeProfile()
+    const c = createCharacter({ classId: 'knight', rng })
+    p.characters[c.id] = c
+    const sword = createGearInstance('iron_sword', { kind: 'permanent' })
+    p.inventory.gear.push(sword)
+    equipGear(p, c.id, sword.id)
+
+    expect(gearStatDeltas(c, 'steel_sword')).toEqual([{ key: 'atk', delta: 8 }])
+  })
+
+  it('returns nothing for items that share the equipped bonuses', () => {
+    const p = makeProfile()
+    const c = createCharacter({ classId: 'knight', rng })
+    p.characters[c.id] = c
+    const sword = createGearInstance('iron_sword', { kind: 'permanent' })
+    p.inventory.gear.push(sword)
+    equipGear(p, c.id, sword.id)
+
+    expect(gearStatDeltas(c, 'iron_sword')).toEqual([])
+  })
+
+  it('ignores non-equippable items', () => {
+    const c = createCharacter({ classId: 'knight', rng })
+    expect(gearStatDeltas(c, 'health_potion')).toEqual([])
   })
 })
 

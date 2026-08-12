@@ -95,7 +95,7 @@ export class BoxesPanel extends Panel {
         cell
           .setInteractive({ useHandCursor: true })
           .on('pointerover', () => {
-            cell.setFillStyle(isSelected ? THEME.colors.selected : THEME.colors.hover)
+            cell.setFillStyle(isSelected ? THEME.colors.selected : THEME.colors.accentSoft)
           })
           .on('pointerout', () => {
             cell.setFillStyle(isSelected ? THEME.colors.selected : THEME.colors.panelAlt)

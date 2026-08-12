@@ -22,7 +22,7 @@ export class InventoryPanel extends Panel {
     const colY = pad
     const rowH = 40
 
-    uiText(this.scene, pad, colY - 2, 'GEAR INSTANCES', { size: 'xs', color: THEME.colors.accent }, content)
+    uiText(this.scene, pad, colY - 2, 'GEAR INSTANCES', { size: 'xs', color: THEME.colors.accentBlue }, content)
     let gy = colY + 18
     for (const g of profile.inventory.gear) {
       const item = getItem(g.itemId)
@@ -49,7 +49,7 @@ export class InventoryPanel extends Panel {
 
     const itemsX = pad * 2 + colW
     const itemsY = pad
-    uiText(this.scene, itemsX, itemsY - 2, 'CONSUMABLES & TOMES', { size: 'xs', color: THEME.colors.accent }, content)
+    uiText(this.scene, itemsX, itemsY - 2, 'CONSUMABLES & TOMES', { size: 'xs', color: THEME.colors.accentBlue }, content)
     let iy = itemsY + 18
     for (const entry of profile.inventory.items) {
       const item = getItem(entry.itemId)

@@ -4,11 +4,34 @@
  * See `docs/party-and-equipment.md` §4 and `docs/durability.md` §4.
  */
 
-import type { PlayerProfile, GearInstance, ItemType } from './types'
+import type { PlayerProfile, GearInstance, ItemType, Character, StatKey } from './types'
 import { removeGearById } from './inventory'
 import { getItem } from './data'
 
 export type GearSlot = 'weapon' | 'armor'
+
+export interface StatDelta {
+  key: StatKey
+  delta: number
+}
+
+const STAT_ORDER: StatKey[] = ['hp', 'atk', 'def', 'mag', 'res', 'spd']
+
+/** Per-stat change from equipping `itemId` onto `c`, vs. what's currently in its slot. */
+export function gearStatDeltas(c: Character, itemId: string): StatDelta[] {
+  const slot = slotForItemType(getItem(itemId).type)
+  if (!slot) return []
+  const item = getItem(itemId)
+  const current = c.gear[slot]
+  const currentBonus = current ? (getItem(current.itemId).statBonus ?? {}) : {}
+  const newBonus = item.statBonus ?? {}
+  const deltas: StatDelta[] = []
+  for (const key of STAT_ORDER) {
+    const delta = (newBonus[key] ?? 0) - (currentBonus[key] ?? 0)
+    if (delta !== 0) deltas.push({ key, delta })
+  }
+  return deltas
+}
 
 export function slotForItemType(type: ItemType): GearSlot | null {
   if (type === 'weapon') return 'weapon'

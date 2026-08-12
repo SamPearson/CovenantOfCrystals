@@ -8,7 +8,7 @@ import { validateSaveFile } from './validation'
 import type { SaveFile } from './types'
 import { uuid } from './id'
 
-export const SAVE_KEY = 'fatebound.save'
+export const SAVE_KEY = 'covenant.of.crystals.save'
 export const SCHEMA_VERSION = 1
 
 function storage(): Storage | null {

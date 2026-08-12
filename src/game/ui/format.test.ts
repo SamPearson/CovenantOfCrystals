@@ -3,6 +3,7 @@ import {
   durabilityLabel,
   statLabel,
   statList,
+  statDeltaText,
   itemTypeLabel,
   roleLabel,
   elementLabel,
@@ -31,6 +32,14 @@ describe('stat helpers', () => {
     const keys = statList(stats).map((s) => s.key)
     expect(keys).toEqual(['hp', 'atk', 'def', 'mag', 'res', 'spd'])
     expect(statList(stats)[0]!.value).toBe(1)
+  })
+})
+
+describe('statDeltaText', () => {
+  it('formats gains, losses, and the stat key', () => {
+    expect(statDeltaText(10, 'atk')).toBe('+10 ATK')
+    expect(statDeltaText(-4, 'def')).toBe('-4 DEF')
+    expect(statDeltaText(0, 'spd')).toBe('+0 SPD')
   })
 })
 

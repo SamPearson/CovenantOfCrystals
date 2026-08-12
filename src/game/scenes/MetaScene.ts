@@ -1,6 +1,7 @@
 import Phaser from 'phaser'
-import { THEME } from '../ui/theme'
+import { THEME, colorHex } from '../ui/theme'
 import { uiText, makeButton, type Button } from '../ui/widgets'
+import { STONE_BG_KEY } from '../ui/textures'
 import { BoxesPanel } from '../ui/panels/boxes-panel'
 import { PartyPanel } from '../ui/panels/party-panel'
 import { EquipPanel } from '../ui/panels/equip-panel'
@@ -35,15 +36,35 @@ export class MetaScene extends Phaser.Scene {
     initStore()
 
     this.add.rectangle(0, 0, width, height, THEME.colors.bg).setOrigin(0)
+    this.add.image(width / 2, height / 2, STONE_BG_KEY).setOrigin(0.5)
+    this.add
+      .rectangle(width / 2, height / 2, width - 8, height - 8, 0x000000, 0)
+      .setStrokeStyle(1, THEME.colors.borderLight, 0.4)
 
-    uiText(this, THEME.spacing.pad, 12, 'FATEBOUND', { size: 'xl', color: THEME.colors.accent })
-    this.headerGold = uiText(this, width - THEME.spacing.pad, 14, '', { size: 'md' }).setOrigin(1, 0)
+    // Deep-green header band (title + gold + profile sit on it).
+    const headerH = THEME.header.height
+    this.add.rectangle(width / 2, headerH / 2, width, headerH, THEME.colors.panel).setOrigin(0.5)
+    this.add
+      .rectangle(width / 2, headerH - 1, width, 1, THEME.colors.borderLight, 0.3)
+      .setOrigin(0.5, 0.5)
+
+    uiText(this, THEME.spacing.pad, 10, 'Covenant of Crystals', {
+      size: 'xl',
+      color: THEME.colors.gold,
+      family: 'display',
+      letterSpacing: 2,
+    })
+    this.headerGold = uiText(this, width - THEME.spacing.pad, 8, '', {
+      size: 'md',
+      color: THEME.colors.gold,
+      family: 'display',
+    }).setOrigin(1, 0)
     this.headerProfile = uiText(
       this,
       width - THEME.spacing.pad,
-      16,
+      28,
       '',
-      { size: 'sm', color: THEME.colors.textMuted },
+      { size: 'sm', color: THEME.colors.borderLight },
     ).setOrigin(1, 0)
 
     const contentRect = {
@@ -109,8 +130,8 @@ export class MetaScene extends Phaser.Scene {
         {
           width: 108,
           height: THEME.tabs.height - 8,
-          color: isActive ? THEME.colors.accent : THEME.colors.accentDark,
-          labelColor: THEME.colors.textOnAccent,
+          color: isActive ? THEME.colors.accent : THEME.colors.accentBlue,
+          labelColor: isActive ? THEME.colors.textOnAccent : colorHex(THEME.colors.borderLight),
         },
       )
       this.tabButtons.push(button)
