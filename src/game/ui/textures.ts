@@ -13,6 +13,8 @@ import { THEME } from './theme'
 export const STONE_FACE_KEY = 'stone-face'
 /** Large, subtly vignetted background field. */
 export const STONE_BG_KEY = 'stone-bg'
+/** Prefix for per-size rounded panel-face textures (purged on theme change). */
+export const PANEL_FACE_PREFIX = 'panel-face-'
 
 interface RGB {
   r: number
@@ -137,7 +139,7 @@ function roundRectPath(ctx: CanvasRenderingContext2D, x: number, y: number, w: n
  * mask (which mis-renders inside containers in the Canvas renderer).
  */
 export function roundedFaceTextureKey(scene: Phaser.Scene, w: number, h: number, radius: number): string {
-  const key = `panel-face-${w}x${h}r${radius}`
+  const key = `${PANEL_FACE_PREFIX}${w}x${h}r${radius}`
   if (scene.textures.exists(key)) return key
   const canvas = buildFace(w, h, toRGB(THEME.colors.face))
   const ctx = canvas.getContext('2d')!
@@ -156,9 +158,16 @@ export function roundedFaceTextureKey(scene: Phaser.Scene, w: number, h: number,
 /**
  * Generates the base stone textures for the active theme. Safe to call more
  * than once (existing textures are re-created with the current theme's colors).
+ * Also purges cached rounded panel-face textures so every panel re-bakes with
+ * the current face color after a theme change.
  */
 export function createStoneTextures(scene: Phaser.Scene): void {
   const c = THEME.colors
+
+  for (const key of scene.textures.getTextureKeys()) {
+    if (key.startsWith(PANEL_FACE_PREFIX)) scene.textures.remove(key)
+  }
+
   if (scene.textures.exists(STONE_FACE_KEY)) scene.textures.remove(STONE_FACE_KEY)
   const face = scene.textures.createCanvas(STONE_FACE_KEY, 96, 96)!
   face.context.drawImage(buildFace(96, 96, toRGB(c.face)), 0, 0)

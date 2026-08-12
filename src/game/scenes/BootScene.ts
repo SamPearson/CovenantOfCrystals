@@ -1,5 +1,6 @@
 import Phaser from 'phaser'
-import { THEME, colorHex } from '../ui/theme'
+import { THEME, colorHex, setTheme } from '../ui/theme'
+import { initThemes, getActiveTheme } from '../../core/themes'
 import { createStoneTextures, STONE_BG_KEY } from '../ui/textures'
 
 export class BootScene extends Phaser.Scene {
@@ -12,6 +13,8 @@ export class BootScene extends Phaser.Scene {
     const cx = width / 2
     const cy = height / 2
 
+    initThemes()
+    setTheme(getActiveTheme())
     createStoneTextures(this)
     this.add.rectangle(0, 0, width, height, THEME.colors.bg).setOrigin(0)
     this.add.image(cx, cy, STONE_BG_KEY).setOrigin(0.5)

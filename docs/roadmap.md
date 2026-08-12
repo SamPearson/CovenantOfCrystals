@@ -117,6 +117,13 @@ working document — update it as decisions land.
 | 27 | How does `Character.gear` reference equipment? | **Unique gear instances** (`GearInstance`), matching inventory + per-instance durability (`data-model.md` §2) |
 | 28 | State library? | **None yet** — plain in-memory store (`src/core/store.ts`) over `save.service.ts`; revisit if UI grows (`architecture.md` §6) |
 
+### Locked (round 3)
+
+| # | Question | Decision |
+| --- | --- | --- |
+| 29 | Player color themes? | **Yes** — create/edit/activate/save/load/delete custom **color profiles** (palette + rarity tints) in a DOM-overlay "Theme Studio" with native color pickers (`src/game/ui/theme-editor.ts`). Fonts/spacing/dimensions are fixed structural presets. |
+| 30 | Where do theme profiles live? | **Separate from saves** — a global localStorage key (`covenant.of.crystals.themes`), versioned like saves; only user profiles are stored, built-in presets live in code and can't be deleted/edited (`src/core/themes.ts`). |
+
 ### Still open
 
 | # | Question | Where it lives |

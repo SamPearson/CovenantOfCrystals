@@ -36,7 +36,8 @@ src/
 │   │   ├── BattleScene.ts     # battle board, turn execution, animations
 │   │   └── ResultScene.ts     # run end, rewards, payout
 │   └── ui/                    # shared UI widgets (panels, buttons, lists)
-│       ├── theme.ts           # single configurable style source (colors/fonts/spacing)
+│       ├── theme.ts           # active THEME binding + re-exports (setTheme / applyThemeProfile)
+│       ├── theme-editor.ts    # DOM overlay "Theme Studio" (color profile editing)
 │       ├── widgets.ts         # uiText, panels, buttons, badges (top-left anchored)
 │       ├── format.ts          # pure text-format helpers (unit-tested)
 │       └── panels/            # meta panels: boxes, party, equip, inventory
@@ -44,6 +45,7 @@ src/
 │   ├── combat/                # turn engine, damage, status, autobattle AI
 │   ├── meta/                  # roster, boxes, party, inventory, currency
 │   ├── runs/                  # run generation (seeded), node logic, rewards
+│   ├── themes.ts              # color profile store: presets, CRUD, activate, persistence, validation
 │   ├── data/                  # definitions (see §5) + data-loaders
 │   ├── save/                  # SaveManager: versioning, localStorage/IndexedDB
 │   └── rng/                   # seeded PRNG (mulberry32 / xorshift)
@@ -79,6 +81,10 @@ src/
   rest nodes, meta screen changes, unload).
 - **What's in a save:** profile, boxes, party, inventory, currency, unlocks,
   active run (if any) at its last checkpoint. Never store derived state.
+- **Display settings are separate from saves:** color theme profiles live in
+  their own versioned localStorage key (`core/themes.ts`), so they apply to the
+  whole app regardless of the active profile. User profiles are persisted;
+  built-in presets are code and cannot be edited/deleted.
 
 ---
 
