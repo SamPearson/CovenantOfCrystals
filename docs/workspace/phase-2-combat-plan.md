@@ -131,14 +131,15 @@ needs. Land with the engine build (they stay in lockstep).
 
 ## 7. Milestones & exit criteria
 
-### M1 — combat types + timeline
+### M1 — combat types + timeline ✅ done
 - `types.ts`, `timeline.ts` + tests. Reinsert ordering, SPD/SPD_REF curve,
   tie rules, push/pull helpers confirm position math.
 
-### M2 — damage, healing & status
-- `damage.ts`, `status.ts` + tests. Formulas match `combat.md` §5 exactly:
-  element multipliers, unclamped ratio, variance bounds, crit/dodge/blind,
-  heal scaling, stacking/cap, own-turn durations, DOT cadence, CC behavior.
+### M2 — damage, healing & status ✅ done
+- `damage.ts`, `status.ts` + tests (both in `src/core/combat/`, 22 + 28 tests).
+  Formulas match `combat.md` §5 exactly: element multipliers, unclamped ratio,
+  variance bounds, crit/dodge/blind, heal scaling, stacking/cap, own-turn
+  durations, DOT cadence, CC behavior.
 
 ### M3 — enemy AI scripts
 - `ai.ts` + priority-script datasets for `minion` / `tanky` / `glass` / `boss`.

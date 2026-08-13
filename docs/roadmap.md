@@ -31,7 +31,7 @@ working document — update it as decisions land.
 ### Phase 2 — CTB combat engine prototype
 - [ ] CTB turn engine in `core/combat`: timeline + reinsert queue (SPD climb,
   action weight/delay, tie rules, `nextAt` mutation hook)
-- [ ] Damage/status formulas in `core/combat` (unit-tested): ratio-based
+- [x] Damage/status formulas in `core/combat` (unit-tested): ratio-based
   damage, heal (MAG-scaling magic / flat items), element multipliers, crit /
   dodge / blind, status stacking + own-turn durations, DOT cadence
 - [ ] Enemy AI priority-script interpreter + `minion` / `tanky` / `glass` /

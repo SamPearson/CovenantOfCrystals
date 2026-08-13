@@ -87,7 +87,7 @@ export const SKILLS: Record<string, SkillDef> = {
   // Healer
   heal: {
     id: 'heal', name: 'Heal', kind: 'heal', element: 'holy',
-    power: 60, scaling: 'hp', targets: 'single', cost: 5,
+    power: 60, scaling: 'mag', targets: 'single', cost: 5,
   },
   cleanse: {
     id: 'cleanse', name: 'Cleanse', kind: 'utility', element: 'holy',
@@ -99,7 +99,7 @@ export const SKILLS: Record<string, SkillDef> = {
   },
   greater_heal: {
     id: 'greater_heal', name: 'Greater Heal', kind: 'heal', element: 'holy',
-    power: 120, scaling: 'hp', targets: 'single', cost: 8,
+    power: 120, scaling: 'mag', targets: 'single', cost: 8,
   },
 
   // Bard
@@ -114,7 +114,7 @@ export const SKILLS: Record<string, SkillDef> = {
   },
   soothing_song: {
     id: 'soothing_song', name: 'Soothing Song', kind: 'heal', element: 'frost',
-    power: 50, scaling: 'hp', targets: 'single', cost: 5,
+    power: 50, scaling: 'mag', targets: 'single', cost: 5,
   },
   slow_rhythm: {
     id: 'slow_rhythm', name: 'Slow Rhythm', kind: 'debuff', element: 'frost',

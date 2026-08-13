@@ -12,6 +12,10 @@ export interface BalanceConfig {
   critRate: number
   critDamage: number
   dodgeRate: number
+  /** Heal scaling reference: heal = basePower × (MAG / magRef). */
+  magRef: number
+  /** Blind halves the affected actor's accuracy. */
+  blindAccuracy: number
   /** Per-status effective-modifier cap (statuses stack per-status). */
   statCap: number
   /** Poison ticks after every N resolved turns. */
@@ -31,6 +35,8 @@ export const BALANCE: BalanceConfig = {
   critRate: 0.05,
   critDamage: 1.5,
   dodgeRate: 0.05,
+  magRef: 20,
+  blindAccuracy: 0.5,
   statCap: 2,
   poisonInterval: 3,
   actionDelays: { attack: 100, defend: 110, item: 160, skill: 120 },

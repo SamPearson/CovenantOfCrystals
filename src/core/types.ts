@@ -35,6 +35,11 @@ export type SkillTargets = 'single' | 'all-allies' | 'all-enemies' | 'self'
 export type ItemType = 'weapon' | 'armor' | 'consumable' | 'tome' | 'misc'
 export type Rarity = 'common' | 'rare' | 'epic' | 'legendary'
 
+/**
+ * `shield` / `taunt` / `stun` are types-stub only — designed but out of the
+ * v1 engine (`docs/combat.md` §11). The active set is handled by
+ * `src/core/combat/status.ts`.
+ */
 export interface StatusEffect {
   kind:
     | 'statBuff'
@@ -42,6 +47,9 @@ export interface StatusEffect {
     | 'burn'
     | 'poison'
     | 'regen'
+    | 'sleep'
+    | 'blind'
+    | 'freeze'
     | 'shield'
     | 'taunt'
     | 'stun'
@@ -75,6 +83,8 @@ export interface SkillDef {
   cost: number
   cooldown?: number
   effect?: StatusEffect
+  /** Action weight on the CTB queue — higher = slower re-insert (`docs/combat.md` §2). */
+  delay?: number
 }
 
 /** Static definition of an item (gear template, consumable, or tome). */

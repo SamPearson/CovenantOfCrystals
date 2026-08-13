@@ -5,3 +5,5 @@
 
 export * from './types'
 export * from './timeline'
+export * from './damage'
+export * from './status'
