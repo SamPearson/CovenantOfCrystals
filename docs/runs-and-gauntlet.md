@@ -100,7 +100,7 @@ Phase 5.
 | **Full wipe** (entire party KO'd) | Run ends; the party is now **0 characters** — no survivors. Gold/drops are lost (optionally a small consolation). Player returns to the PC boxes / recruitment NPC. |
 | **Abandon** (player quits the run) | Survivors keep XP/levels/gear; reduced gold/drops. No permadeath just for quitting. |
 
-- **Permadeath is battle-driven only** (see `combat.md` §5); quitting a run
+- **Permadeath is battle-driven only** (see `combat.md` §6); quitting a run
   never kills characters. A full wipe leaves **no survivors** — every KO'd
   character is gone.
 - After any run end, the player rebuilds the party from the PC boxes or buys

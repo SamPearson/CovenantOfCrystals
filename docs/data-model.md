@@ -104,7 +104,7 @@ interface ItemDef {
 }
 ```
 
-**No revive skills/items** (`combat.md` §4) — `SkillKind` and `ItemDef.use`
+**No revive skills/items** (`combat.md` §6) — `SkillKind` and `ItemDef.use`
 have no revive fields.
 
 ---

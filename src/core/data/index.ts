@@ -10,6 +10,8 @@ import type { ClassDef, SkillDef, ItemDef, EnemyDef } from '../types'
  */
 export { CLASSES, SKILLS, ITEMS, ENEMIES }
 export { elementMultiplier, ELEMENT_CHART, ELEMENTS } from './elements'
+export { BALANCE } from './balance'
+export type { BalanceConfig } from './balance'
 
 const classesById = new Map<string, ClassDef>(CLASSES.map((c) => [c.id, c]))
 

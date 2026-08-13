@@ -46,7 +46,7 @@ combat.
 | **Skip animations** | Instant resolution with a compact battle log |
 | **Auto-advance** | After a battle, queue the next node (with a confirm/pause point) |
 
-The battle log (see `combat.md` §8) is the audit trail: even at 4× you can
+The battle log (see `combat.md` §10) is the audit trail: even at 4× you can
 scroll back to see why a character made a move.
 
 ---
@@ -86,7 +86,7 @@ scroll back to see why a character made a move.
 - Autobattle can lose fights a good manual player would win — that's fine and
   expected; it's the cost of convenience.
 - Autobattle must never force a **forfeit**. If the player steps away and a
-  battle is lost, that's combat loss rules (see `combat.md` §5), not an idle
+  battle is lost, that's combat loss rules (see `combat.md` §6), not an idle
   penalty.
 - Abandoning a run while away = normal abandon payout (see
   `runs-and-gauntlet.md` §5); no extra punishment.

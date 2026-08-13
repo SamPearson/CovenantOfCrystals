@@ -92,7 +92,7 @@ Two distinct reward streams (keep them separate in the data model):
 | **Drops / items** | Battles, run rewards, elite/boss drops | Equipping directly, selling for gold, crafting (later) |
 
 - Drops include gear, consumables (potions, heal items), and skill tomes.
-  (Revive items do not exist — see `combat.md` §4.)
+  (Revive items do not exist — see `combat.md` §6.)
 - Any drop can be **permanent or expiring** per the durability template
   (`durability.md`).
 - **Single currency (locked):** just **gold**. No premium/third currency.

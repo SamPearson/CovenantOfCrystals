@@ -66,7 +66,8 @@ Every design decision should be checked against these six pillars.
 | --- | --- | --- |
 | [metagame.md](./metagame.md) | Login/accounts, PC boxes, party selection, currencies, meta progression | Draft |
 | [party-and-equipment.md](./party-and-equipment.md) | Characters, classes, stats, gear, magic skills, builds | Draft |
-| [combat.md](./combat.md) | Turn-based rules, damage, status, permadeath, enemy AI | Draft |
+| [combat.md](./combat.md) | CTB battle engine: timeline/queue, damage & heal formulas, statuses, permadeath, enemy AI, outcome contract | Spec |
+| [workspace/phase-2-combat-plan.md](./workspace/phase-2-combat-plan.md) | Build plan for the Phase 2 combat engine (modules, data changes, milestones, test matrix) | Draft |
 | [durability.md](./durability.md) | Permanent vs. expiring assets (the durability template) | Draft |
 | [runs-and-gauntlet.md](./runs-and-gauntlet.md) | Run structure, roguelike loop, difficulty curve, rewards | Draft |
 | [autobattle-and-idle.md](./autobattle-and-idle.md) | Autobattle AI, speed controls, leaving/returning, persistence | Draft |
