@@ -20,6 +20,10 @@ export interface BalanceConfig {
   statCap: number
   /** Poison ticks after every N resolved turns. */
   poisonInterval: number
+  /** Shared MP pool size for party actors (enemies use cost-0 skills). */
+  maxMp: number
+  /** Base power of a basic attack (`docs/combat.md` §5). */
+  basicAttackPower: number
   /** Action weights on the queue (higher = slower re-insert). */
   actionDelays: {
     attack: number
@@ -39,5 +43,7 @@ export const BALANCE: BalanceConfig = {
   blindAccuracy: 0.5,
   statCap: 2,
   poisonInterval: 3,
+  maxMp: 30,
+  basicAttackPower: 15,
   actionDelays: { attack: 100, defend: 110, item: 160, skill: 120 },
 }

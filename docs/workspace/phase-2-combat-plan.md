@@ -148,10 +148,20 @@ needs. Land with the engine build (they stay in lockstep).
   (`AI_SCRIPTS`, `getAiScript`), 5 data-integrity tests. `EnemyDef.ai` is now
   typed `AiProfileId`.
 
-### M4 — battle orchestration + outcome contract
+### M4 — battle orchestration + outcome contract ✅ done
 - `battle.ts` + tests. `createBattle` → `performAction` loop → end-checks →
   `BattleResult` shape (status, koIds, survivors, xpAwarded, drops, log).
   Permadeath/full-wipe detected here, **applied** by the run layer later.
+- `createBattle(partyDefs, enemyDefs, seed)` + `performAction(battle, actorId,
+  action, rng)` follow `combat.md` §3 (own-turn ticks → CC skip → act →
+  duration tick → reinsert with action delay → global turn counter → end
+  check). Enemies act through the AI interpreter via `chooseEnemyAction`.
+- `BattleActor` gained battle-time fields (element, skills, maxMp, cooldowns,
+  defending, ownTurn, aiProfile); `applyStatus` widened to accept skill
+  `StatusEffect`s (`duration` optional → narrowed at apply time).
+- 22 unit tests: initiative, attack/skill/item/defend/escape, statuses + CC,
+  poison interval, won/lost/fled end-checks + full wipe, seeded determinism.
+  Full suite 259/259 passing, `tsc --noEmit` clean.
 
 ### M5 — minimal scripted BattleScene
 - A `BattleScene` (manual control) with a **fixed scripted squad** — e.g., 2

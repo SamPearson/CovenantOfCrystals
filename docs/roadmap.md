@@ -36,13 +36,18 @@ working document — update it as decisions land.
   dodge / blind, status stacking + own-turn durations, DOT cadence
 - [x] Enemy AI priority-script interpreter + `minion` / `tanky` / `glass` /
   `boss` profiles (same interpreter autobattle uses in Phase 4)
-- [ ] Battle orchestration + outcome contract (`BattleResult`: status,
-  koIds, survivors, xpAwarded, drops, log) for Phase 3 to consume
+- [x] Battle orchestration + outcome contract (`battle.ts`: `createBattle`,
+  `performAction`, `chooseEnemyAction` via the AI interpreter, end-checks,
+  `getBattleResult` → `BattleResult`: status, koIds, survivors, xpAwarded,
+  drops, log) for Phase 3 to consume
 - [ ] Minimal BattleScene: fixed scripted squad, manual control only
   (Attack / Skill / Defend)
 - **Plan:** `workspace/phase-2-combat-plan.md`
-- **Exit criteria:** manual battle vs. a stub enemy resolves to a win/loss;
-  formulas match the spec in `combat.md`; same seed → same battle.
+- **Exit criteria:** manual battle vs. a stub enemy resolves to a win/loss
+  (engine-side: won/lost/fled end-checks + full wipe ✓); formulas match the
+  spec in `combat.md` (✓ — full suite green, `tsc --noEmit` clean); same
+  seed → same battle (✓ — determinism test). Remaining: the scripted
+  BattleScene itself.
   Docs: `combat.md` (full CTB spec).
 
 ### Phase 3 — Run loop

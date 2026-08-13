@@ -26,6 +26,7 @@
 import { BALANCE, type BalanceConfig } from '../data/balance'
 import type { StatKey } from '../types'
 import type { ActiveStatus, ActiveStatusKind, BattleActor } from './types'
+import type { StatusEffect } from '../types'
 
 /** The in-engine status set. `shield`/`taunt`/`stun` are out of Phase 2. */
 export const ENGINE_STATUSES: readonly ActiveStatusKind[] = [
@@ -82,7 +83,7 @@ export function hasStatus(actor: BattleActor, kind: ActiveStatusKind, stat?: Sta
  */
 export function applyStatus(
   actor: BattleActor,
-  status: ActiveStatus,
+  status: StatusEffect,
   balance: BalanceConfig = BALANCE,
 ): boolean {
   assertDuration(status.duration)
@@ -94,7 +95,7 @@ export function applyStatus(
       return false
     }
   }
-  actor.statuses.push({ ...status })
+  actor.statuses.push({ ...status, duration: status.duration })
   return true
 }
 

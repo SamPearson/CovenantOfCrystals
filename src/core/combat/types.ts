@@ -8,7 +8,7 @@
  * live CTB queue; no derived state is stored beyond it.
  */
 
-import type { StatBlock, StatKey } from '../types'
+import type { StatBlock, StatKey, Element, AiProfileId } from '../types'
 
 export type CombatantSide = 'player' | 'enemy'
 
@@ -69,6 +69,25 @@ export interface BattleActor {
   mp: number
   statuses: ActiveStatus[]
   ko: boolean
+  /**
+   * Battle-time extras — populated by `createBattle` in `battle.ts`. They are
+   * optional on the type so unit fixtures (`status.test.ts` etc.) can keep
+   * building minimal actors; the engine always sets them.
+   */
+  /** Attacker element (character class element, or the enemy def's element). */
+  element?: Element
+  /** Skill ids the actor can cast (character loadout, or enemy skill list). */
+  skills?: string[]
+  /** MP pool ceiling — needed to clamp heal-item/heal-skill recovery. */
+  maxMp?: number
+  /** Remaining own-turn cooldowns, keyed by skillId. */
+  cooldowns?: Record<string, number>
+  /** True while the actor is defending (`docs/combat.md` §4). */
+  defending?: boolean
+  /** Own turn counter (1-based) driving AI `turns` / `turns-mod` calendars. */
+  ownTurn?: number
+  /** AI profile for enemy actors (`docs/combat.md` §8). */
+  aiProfile?: AiProfileId
 }
 
 export interface BattleLogEntry {

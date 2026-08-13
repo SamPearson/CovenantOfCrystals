@@ -38,6 +38,20 @@ Phase 2 milestone 3 is built:
   seeding, the boss calendar pattern, and that every profile/script is wired to
   a real enemy.
 
-Remaining in Phase 2: **M4 battle orchestration + `BattleResult`**,
-**M5 minimal BattleScene**.
+Phase 2 milestone 4 is built:
+- **M4 — Battle orchestration + `BattleResult`**: `core/combat/battle.ts`
+  (`createBattle` → `performAction` loop → end-checks → `getBattleResult`
+  returning the outcome contract: status, koIds, survivors, xpAwarded,
+  drops, log). `performAction` follows the `combat.md` §3 flow (own-turn
+  ticks, CC skip, cooldown/MP/item/defend/escape handling, reinsert with
+  action delay, poison global interval, won/lost/fled end-checks + full
+  wipe). Enemies act through the AI interpreter via `chooseEnemyAction`;
+  `BattleActor` gained battle-time fields (element, skills, maxMp,
+  cooldowns, defending, ownTurn, aiProfile) and `applyStatus` now accepts
+  skill `StatusEffect`s. 22 unit tests cover initiative, actions, statuses,
+  poison, end conditions and seeded determinism; permadeath/full-wipe are
+  detected here and **applied** by the run layer later. Full suite
+  259/259 passing, `tsc --noEmit` clean.
+
+Remaining in Phase 2: **M5 minimal BattleScene**.
 
