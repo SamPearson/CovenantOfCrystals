@@ -9,6 +9,7 @@ import type { ClassDef, SkillDef, ItemDef, EnemyDef } from '../types'
  * through these, so lookups are validated and swapable (Stage 2: mock API).
  */
 export { CLASSES, SKILLS, ITEMS, ENEMIES }
+export { AI_SCRIPTS, getAiScript } from './ai'
 export { elementMultiplier, ELEMENT_CHART, ELEMENTS } from './elements'
 export { BALANCE } from './balance'
 export type { BalanceConfig } from './balance'

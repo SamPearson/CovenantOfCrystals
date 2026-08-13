@@ -141,9 +141,12 @@ needs. Land with the engine build (they stay in lockstep).
   variance bounds, crit/dodge/blind, heal scaling, stacking/cap, own-turn
   durations, DOT cadence, CC behavior.
 
-### M3 — enemy AI scripts
+### M3 — enemy AI scripts ✅ done
 - `ai.ts` + priority-script datasets for `minion` / `tanky` / `glass` / `boss`.
   First-true-condition selection is deterministic and testable.
+- `src/core/combat/ai.ts` (interpreter, 11 tests) + `src/core/data/ai.ts`
+  (`AI_SCRIPTS`, `getAiScript`), 5 data-integrity tests. `EnemyDef.ai` is now
+  typed `AiProfileId`.
 
 ### M4 — battle orchestration + outcome contract
 - `battle.ts` + tests. `createBattle` → `performAction` loop → end-checks →

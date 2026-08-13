@@ -2,7 +2,8 @@ import type { EnemyDef } from '../types'
 
 /**
  * Enemy definitions. Stubs for the Phase 2/3 combat engine.
- * `ai` references a behavior profile id ('minion' | 'tanky' | 'glass' | 'boss').
+ * `ai` references an `AiProfileId` — its priority script lives in `./ai`.
+ * `skills[0]` is the enemy's primary skill (AI scripts fall back to it).
  */
 export const ENEMIES: Record<string, EnemyDef> = {
   slime: {
@@ -43,6 +44,6 @@ export const ENEMIES: Record<string, EnemyDef> = {
   goblin_king: {
     id: 'goblin_king', name: 'Goblin King', element: 'none', level: 6, isBoss: true,
     stats: { hp: 180, atk: 18, def: 12, mag: 10, res: 10, spd: 9 },
-    skills: ['goblin_swipe', 'rock_smash'], ai: 'boss',
+    skills: ['rock_smash', 'goblin_swipe'], ai: 'boss',
   },
 }

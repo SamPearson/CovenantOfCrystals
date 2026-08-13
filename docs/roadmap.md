@@ -29,12 +29,12 @@ working document — update it as decisions land.
   `data-model.md`.
 
 ### Phase 2 — CTB combat engine prototype
-- [ ] CTB turn engine in `core/combat`: timeline + reinsert queue (SPD climb,
+- [x] CTB turn engine in `core/combat`: timeline + reinsert queue (SPD climb,
   action weight/delay, tie rules, `nextAt` mutation hook)
 - [x] Damage/status formulas in `core/combat` (unit-tested): ratio-based
   damage, heal (MAG-scaling magic / flat items), element multipliers, crit /
   dodge / blind, status stacking + own-turn durations, DOT cadence
-- [ ] Enemy AI priority-script interpreter + `minion` / `tanky` / `glass` /
+- [x] Enemy AI priority-script interpreter + `minion` / `tanky` / `glass` /
   `boss` profiles (same interpreter autobattle uses in Phase 4)
 - [ ] Battle orchestration + outcome contract (`BattleResult`: status,
   koIds, survivors, xpAwarded, drops, log) for Phase 3 to consume

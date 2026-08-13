@@ -99,6 +99,12 @@ export interface ItemDef {
   value: number
 }
 
+/**
+ * Behavior profiles for enemies (and Phase 4 autobattle presets). Each maps to
+ * a priority script in `src/core/data/ai.ts` (`docs/combat.md` §8).
+ */
+export type AiProfileId = 'minion' | 'tanky' | 'glass' | 'boss'
+
 /** Static definition of an enemy. */
 export interface EnemyDef {
   id: string
@@ -107,7 +113,7 @@ export interface EnemyDef {
   level: number
   stats: StatBlock
   skills: string[]
-  ai: string
+  ai: AiProfileId
   isBoss?: boolean
 }
 

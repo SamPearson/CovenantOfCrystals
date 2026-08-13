@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { CLASSES, SKILLS, ITEMS, ENEMIES, elementMultiplier } from './index'
+import type { AiScript } from '../combat/ai'
+import type { AiProfileId } from '../types'
+import { CLASSES, SKILLS, ITEMS, ENEMIES, elementMultiplier, AI_SCRIPTS, getAiScript } from './index'
 
 describe('data integrity', () => {
   it('defines the starter classes with unique ids', () => {
@@ -30,6 +32,50 @@ describe('data integrity', () => {
       if (i.type === 'tome') {
         expect(i.skill).toBeDefined()
         expect(SKILLS[i.skill!], `tome ${i.id}`).toBeDefined()
+      }
+    }
+  })
+})
+
+describe('AI profile scripts', () => {
+  const PROFILES: AiProfileId[] = ['minion', 'tanky', 'glass', 'boss']
+
+  it('covers exactly the enemy AiProfileId union', () => {
+    expect(Object.keys(AI_SCRIPTS).sort()).toEqual([...PROFILES].sort())
+  })
+
+  it('every profile is assigned to at least one existing enemy', () => {
+    const used = new Set(Object.values(ENEMIES).map((e) => e.ai))
+    expect([...used].sort()).toEqual([...PROFILES].sort())
+  })
+
+  it('every enemy has a known ai profile with a script', () => {
+    for (const e of Object.values(ENEMIES)) {
+      expect(() => getAiScript(e.ai), `enemy ${e.id} ai ${e.ai}`).not.toThrow()
+      expect(AI_SCRIPTS[e.ai].length, `enemy ${e.id}`).toBeGreaterThan(0)
+    }
+  })
+
+  it('every script ends in a catch-all so a move always resolves', () => {
+    for (const [profile, script] of Object.entries(AI_SCRIPTS) as [AiProfileId, AiScript][]) {
+      expect(script.length, profile).toBeGreaterThan(0)
+      expect(script[script.length - 1]!.condition.kind, profile).toBe('always')
+    }
+  })
+
+  it('explicit scripted skillIds are known to some enemy of the profile', () => {
+    const knownByProfile = new Map<AiProfileId, Set<string>>()
+    for (const e of Object.values(ENEMIES)) {
+      const known = knownByProfile.get(e.ai) ?? new Set<string>()
+      for (const s of e.skills) known.add(s)
+      knownByProfile.set(e.ai, known)
+    }
+    for (const [profile, script] of Object.entries(AI_SCRIPTS) as [AiProfileId, AiScript][]) {
+      for (const entry of script) {
+        if (entry.action.kind === 'skill' && entry.action.skillId) {
+          expect(knownByProfile.get(profile)?.has(entry.action.skillId), `${profile} skill ${entry.action.skillId}`)
+            .toBe(true)
+        }
       }
     }
   })
