@@ -40,14 +40,15 @@ working document — update it as decisions land.
   `performAction`, `chooseEnemyAction` via the AI interpreter, end-checks,
   `getBattleResult` → `BattleResult`: status, koIds, survivors, xpAwarded,
   drops, log) for Phase 3 to consume
-- [ ] Minimal BattleScene: fixed scripted squad, manual control only
+- [x] Minimal BattleScene: fixed scripted squad, manual control only
   (Attack / Skill / Defend)
 - **Plan:** `workspace/phase-2-combat-plan.md`
 - **Exit criteria:** manual battle vs. a stub enemy resolves to a win/loss
   (engine-side: won/lost/fled end-checks + full wipe ✓); formulas match the
   spec in `combat.md` (✓ — full suite green, `tsc --noEmit` clean); same
-  seed → same battle (✓ — determinism test). Remaining: the scripted
-  BattleScene itself.
+  seed → same battle (✓ — determinism test). ✓ — scripted BattleScene ships:
+  manual control (Attack/Defend/skills), engine-driven enemy turns, CTB queue
+  strip, HP/MP bars, status badges, damage floats, battle log, win/loss panel.
   Docs: `combat.md` (full CTB spec).
 
 ### Phase 3 — Run loop

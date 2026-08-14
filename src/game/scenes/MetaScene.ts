@@ -82,6 +82,15 @@ export class MetaScene extends Phaser.Scene {
       { size: 'sm', color: THEME.colors.borderLight },
     ).setOrigin(1, 0)
 
+    makeButton(
+      this,
+      width / 2 - 75,
+      8,
+      'Test Battle',
+      () => this.scene.start('BattleScene'),
+      { width: 150, height: 32 },
+    )
+
     const contentRect = {
       x: 10,
       y: THEME.header.height + THEME.tabs.height + 6,

@@ -53,5 +53,21 @@ Phase 2 milestone 4 is built:
   detected here and **applied** by the run layer later. Full suite
   259/259 passing, `tsc --noEmit` clean.
 
-Remaining in Phase 2: **M5 minimal BattleScene**.
+Phase 2 milestone 5 is built:
+- **M5 — Minimal scripted BattleScene**: `game/scenes/BattleScene.ts` renders
+  the live `BattleState` (scene reads state only, never mutates the profile —
+  win/loss application stays with the Phase 3 run layer). Entry via the
+  "Test Battle" button in the MetaScene header; `scene.start('BattleScene')`
+  wires a manual battle of the player's party (`partyForBattle` in
+  `game/battle/battle-setup.ts`: equipped party first, else the first boxed
+  champions) against the fixed scripted squad (2 slimes + 1 goblin). Manual
+  controls: Attack / Defend / character skills with cooldown + MP gating;
+  enemies act automatically through `chooseEnemyAction` on a readable delay.
+  The scene renders the CTB queue strip, HP/MP bars, status badges, floating
+  damage numbers, a live battle log and a win/loss result panel (retry with a
+  fresh seed, or return to the base). Pure render helpers live in
+  `game/battle/battle-vitals.ts` + `status-icons.ts` and are unit-tested.
+  Full suite 273/273 passing, `tsc --noEmit` clean.
+
+Phase 2 (milestones 1–5) is complete. Phase 3 (runs & metagame) is next.
 

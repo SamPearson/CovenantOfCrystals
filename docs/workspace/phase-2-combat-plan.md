@@ -16,10 +16,15 @@ autobattle, and the run loop.
 
 ## 2. Status
 
-- Phase 1 (data layer + meta screens + theming) is done. `src/core/` has no
-  `combat/` directory yet.
-- Design questions for the battle system are **resolved** (round-4 decisions in
-  `roadmap.md`); this round's answers are collected in `combat.md`.
+- **Phase 2 is complete (milestones 1–5).** `src/core/combat/` ships the
+  timeline, damage/status formulas, AI interpreter, battle orchestration, and
+  the minimal scripted `BattleScene` (manual control: Attack / Skill / Defend
+  vs. the fixed 2-slime + 1-goblin scripted squad). Full suite 273/273,
+  `tsc --noEmit` clean. The engine is pure, deterministic (seeded), and
+  Phaser-free — shared by manual play, autobattle (Phase 4), and the run loop
+  (Phase 3).
+- Items & escape actions are engine-ready but intentionally not wired in the
+  scene (roadmap decision #42).
 
 ## 3. Scope
 
@@ -163,14 +168,21 @@ needs. Land with the engine build (they stay in lockstep).
   poison interval, won/lost/fled end-checks + full wipe, seeded determinism.
   Full suite 259/259 passing, `tsc --noEmit` clean.
 
-### M5 — minimal scripted BattleScene
+### M5 — minimal scripted BattleScene ✅
 - A `BattleScene` (manual control) with a **fixed scripted squad** — e.g., 2
   slimes + 1 goblin — against the player's party, Attack / Skill / Defend only.
   Battle resolves via `battle.ts`; result reflected in the scene (win/loss +
-  log).
+  log). Built: `game/scenes/BattleScene.ts` (entry via the MetaScene "Test
+  Battle" header button), squad/party resolution in
+  `game/battle/battle-setup.ts`, render helpers in
+  `game/battle/battle-vitals.ts` + `game/battle/status-icons.ts`.
 - Wire the queue strip, HP/MP bars, action buttons, damage numbers, and status
   icons to the live `BattleState` (scenes render state only, per
   `architecture.md`).
+- Exit criteria: manual battle resolves to a win/loss ✓; formulas match
+  `combat.md` (full suite 273/273, `tsc --noEmit` clean) ✓; same seed → same
+  battle ✓. Item / escape buttons are engine-ready but left un-wired (decision
+  #42) — Phase 6 polish + Phase 3 run integration to follow.
 
 ### Exit criteria (from roadmap.md)
 - A manual battle vs. a stub enemy **resolves to a win or a loss**.
