@@ -32,7 +32,7 @@ export type Element =
 
 export type SkillKind = 'damage' | 'heal' | 'buff' | 'debuff' | 'utility'
 export type SkillTargets = 'single' | 'all-allies' | 'all-enemies' | 'self'
-export type ItemType = 'weapon' | 'armor' | 'consumable' | 'tome' | 'misc'
+export type ItemType = 'weapon' | 'armor' | 'consumable' | 'tome' | 'scroll' | 'misc'
 export type Rarity = 'common' | 'rare' | 'epic' | 'legendary'
 
 /**
@@ -94,7 +94,10 @@ export interface ItemDef {
   type: ItemType
   rarity: Rarity
   statBonus?: Partial<StatBlock>
+  /** Tomes: skillId permanently granted when consumed in the meta layer. */
   skill?: string
+  /** Scrolls: skillId cast when used in battle — no MP cost, no cooldown. */
+  castSkill?: string
   use?: { healHp?: number; healMp?: number }
   value: number
 }
@@ -115,6 +118,10 @@ export interface EnemyDef {
   skills: string[]
   ai: AiProfileId
   isBoss?: boolean
+  /** XP awarded to each survivor when the squad is defeated. */
+  xp: number
+  /** Base gold reward (scaled by node type in run-gen). */
+  gold: number
 }
 
 /** A unique owned gear instance (carries its own durability). */
@@ -159,12 +166,81 @@ export interface PlayerProfile {
   party: string[]
   stats: { totalRuns: number; wins: number; losses: number }
   createdAt: number
+  /** Between-runs shop stock (`docs/phase-3-run-loop-plan.md` §5). */
+  shop: ShopStock
+  /** Recruitment offers (`docs/phase-3-run-loop-plan.md` §5). */
+  recruitment: RecruitOffer[]
+}
+
+/**
+ * A checkpointed run (`docs/data-model.md` §5, `phase-3-run-loop-plan.md` §6).
+ * The map is pre-generated from the seed; battle resolution mutates node
+ * state only — the run layer owns rewards and meta transitions.
+ */
+export interface ActiveRun {
+  seed: number
+  profileId: string
+  /** Snapshot of characterIds (geared as snapshot). */
+  party: string[]
+  /** 3 | 5 | 10 (starter subset, decision S11). */
+  length: number
+  /** Pre-generated run map. */
+  nodes: RunNode[]
+  currentNodeIndex: number
+  goldEarned: number
+  /** itemIds banked; converted to inventory at run resolution (S8). */
+  drops: string[]
+  status: RunStatus
+}
+
+export type RunStatus = 'active' | 'won' | 'lost' | 'abandoned'
+
+export type RunNodeType = 'battle' | 'elite' | 'rest' | 'boss'
+// 'shop' | 'event' stay in data-model.md as v1 candidates — not generated in P3 (S1).
+
+export interface RunNode {
+  type: RunNodeType
+  /** Step index — drives difficulty scaling (`docs/roadmap.md` locked #18). */
+  index: number
+  /** Branching options for this step (2–3 visible choices, decision S9). */
+  choices?: { type: RunNodeType; label: string }[]
+  /** Resolved squad for battle/elite/boss nodes (seeded at creation). */
+  enemySquad?: EnemyDef[]
+  /** Pre-rolled reward stub — actual gold rolled at battle end. */
+  gold?: number
+}
+
+export interface RunResult {
+  status: 'won' | 'lost' | 'abandoned'
+  survivors: string[]
+  koIds: string[]
+  goldBanked: number
+  itemsBanked: string[]
+  /** Permanent GearInstance ids (P3 gear is all-permanent, decision S5). */
+  gearBanked: string[]
+  xpGained: Record<string, number>
+}
+
+export interface ShopStock {
+  /** Potion itemIds always on sale (S10). */
+  always: string[]
+  /** Rotating itemIds — 4 gear + 3 skill items per refresh (S10). */
+  rotating: { gear: string[]; skills: string[] }
+}
+
+export interface RecruitOffer {
+  id: string
+  character: Character
+  /** Flat gold price (S6). */
+  price: number
 }
 
 export interface SaveFile {
   schemaVersion: number
   savedAt: number
   profile: PlayerProfile
+  /** Checkpointed run, if any. */
+  activeRun?: ActiveRun
 }
 
 // Locked design constants (docs/roadmap.md).

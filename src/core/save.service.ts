@@ -61,6 +61,11 @@ export function createNewSave(profileId?: string, displayName?: string): SaveFil
       inventory: { items: [], gear: [] },
       party: [],
       stats: { totalRuns: 0, wins: 0, losses: 0 },
+      shop: {
+        always: ['health_potion', 'greater_health_potion', 'mana_potion', 'greater_mana_potion'],
+        rotating: { gear: [], skills: [] },
+      },
+      recruitment: [],
       createdAt: Date.now(),
     },
   }

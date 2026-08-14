@@ -4,6 +4,41 @@
  * numbers from here; it never hardcodes them.
  */
 
+import type { Rarity } from '../types'
+
+export interface RunBalanceConfig {
+  /** Per-node difficulty step: enemy scale multiplies by this per step. */
+  difficultyStep: number
+  /** Elite node scaling multiplier. */
+  eliteMult: number
+  /** Boss node scaling multiplier. */
+  bossMult: number
+  /** A rest node appears at every Nth step (0 = never). */
+  restCadence: number
+  /** Base gold per battle, before variance. */
+  baseGold: number
+  /** Gold variance range (seeded roll). */
+  goldVariance: [number, number]
+  /** Per-battle drop chance (0..1). */
+  dropChance: number
+  /** Drop pool weights per item type (relative). */
+  dropWeights: { gear: number; consumable: number; skillItem: number }
+}
+
+export interface EconomyConfig {
+  /** Fraction of item value returned when selling. */
+  sellRatio: number
+  /** Flat gold price of a recruitment offer (decision S6). */
+  recruitPrice: number
+  /** Rotating stock sizes per refresh (decision S10). */
+  rotatingGear: number
+  rotatingSkillItems: number
+  /** Scroll price tier table (stub power curve, see ./skill-items). */
+  skillItemPrice: Record<Rarity, number>
+  /** Tomes cost this multiple of a scroll's price. */
+  tomePriceMult: number
+}
+
 export interface BalanceConfig {
   /** Normalizes SPD onto the timeline: nextAt = turnTime + actionDelay × (spdRef / spd). */
   spdRef: number
@@ -31,6 +66,10 @@ export interface BalanceConfig {
     item: number
     skill: number
   }
+  /** Run generation + difficulty tuning (Phase 3 plan §5). */
+  run: RunBalanceConfig
+  /** Meta/run economy tuning (Phase 3 plan §5). */
+  economy: EconomyConfig
 }
 
 export const BALANCE: BalanceConfig = {
@@ -46,4 +85,22 @@ export const BALANCE: BalanceConfig = {
   maxMp: 30,
   basicAttackPower: 15,
   actionDelays: { attack: 100, defend: 110, item: 160, skill: 120 },
+  run: {
+    difficultyStep: 1.12,
+    eliteMult: 1.6,
+    bossMult: 2.2,
+    restCadence: 5,
+    baseGold: 20,
+    goldVariance: [0.8, 1.2],
+    dropChance: 0.5,
+    dropWeights: { gear: 1, consumable: 1, skillItem: 0.5 },
+  },
+  economy: {
+    sellRatio: 0.5,
+    recruitPrice: 150,
+    rotatingGear: 4,
+    rotatingSkillItems: 3,
+    skillItemPrice: { common: 200, rare: 450, epic: 900, legendary: 1600 },
+    tomePriceMult: 2.5,
+  },
 }

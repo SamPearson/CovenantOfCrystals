@@ -9,41 +9,41 @@ export const ENEMIES: Record<string, EnemyDef> = {
   slime: {
     id: 'slime', name: 'Slime', element: 'water', level: 1,
     stats: { hp: 40, atk: 8, def: 6, mag: 3, res: 4, spd: 4 },
-    skills: ['tackle'], ai: 'minion',
+    skills: ['tackle'], ai: 'minion', xp: 10, gold: 12,
   },
   goblin: {
     id: 'goblin', name: 'Goblin', element: 'none', level: 2,
     stats: { hp: 45, atk: 12, def: 6, mag: 3, res: 4, spd: 8 },
-    skills: ['goblin_swipe'], ai: 'minion',
+    skills: ['goblin_swipe'], ai: 'minion', xp: 15, gold: 16,
   },
   fire_elemental: {
     id: 'fire_elemental', name: 'Fire Elemental', element: 'fire', level: 3,
     stats: { hp: 55, atk: 10, def: 7, mag: 14, res: 8, spd: 9 },
-    skills: ['ember'], ai: 'glass',
+    skills: ['ember'], ai: 'glass', xp: 25, gold: 24,
   },
   frost_wraith: {
     id: 'frost_wraith', name: 'Frost Wraith', element: 'frost', level: 3,
     stats: { hp: 50, atk: 9, def: 6, mag: 15, res: 9, spd: 10 },
-    skills: ['frost_breath'], ai: 'glass',
+    skills: ['frost_breath'], ai: 'glass', xp: 25, gold: 24,
   },
   shadow_assassin: {
     id: 'shadow_assassin', name: 'Shadow Assassin', element: 'shadow', level: 4,
     stats: { hp: 60, atk: 16, def: 8, mag: 8, res: 7, spd: 13 },
-    skills: ['shadow_strike'], ai: 'glass',
+    skills: ['shadow_strike'], ai: 'glass', xp: 35, gold: 32,
   },
   earth_golem: {
     id: 'earth_golem', name: 'Earth Golem', element: 'earth', level: 4,
     stats: { hp: 110, atk: 13, def: 14, mag: 4, res: 10, spd: 5 },
-    skills: ['rock_smash'], ai: 'tanky',
+    skills: ['rock_smash'], ai: 'tanky', xp: 35, gold: 40,
   },
   holy_guardian: {
     id: 'holy_guardian', name: 'Holy Guardian', element: 'holy', level: 5,
     stats: { hp: 100, atk: 12, def: 12, mag: 12, res: 14, spd: 7 },
-    skills: ['holy_smite'], ai: 'tanky',
+    skills: ['holy_smite'], ai: 'tanky', xp: 45, gold: 48,
   },
   goblin_king: {
     id: 'goblin_king', name: 'Goblin King', element: 'none', level: 6, isBoss: true,
     stats: { hp: 180, atk: 18, def: 12, mag: 10, res: 10, spd: 9 },
-    skills: ['rock_smash', 'goblin_swipe'], ai: 'boss',
+    skills: ['rock_smash', 'goblin_swipe'], ai: 'boss', xp: 80, gold: 120,
   },
 }

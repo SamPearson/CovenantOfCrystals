@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { AiScript } from '../combat/ai'
 import type { AiProfileId } from '../types'
 import { CLASSES, SKILLS, ITEMS, ENEMIES, elementMultiplier, AI_SCRIPTS, getAiScript } from './index'
+import { PLAYER_SKILL_IDS, ENEMY_ONLY_SKILL_IDS, SKILL_SCROLLS, SKILL_TOMES, scrollFor, tomeFor } from './skill-items'
 
 describe('data integrity', () => {
   it('defines the starter classes with unique ids', () => {
@@ -33,6 +34,52 @@ describe('data integrity', () => {
         expect(i.skill).toBeDefined()
         expect(SKILLS[i.skill!], `tome ${i.id}`).toBeDefined()
       }
+    }
+  })
+
+  it('scrolls cast a known skill', () => {
+    for (const i of Object.values(ITEMS)) {
+      if (i.type === 'scroll') {
+        expect(i.castSkill).toBeDefined()
+        expect(SKILLS[i.castSkill!], `scroll ${i.id}`).toBeDefined()
+      }
+    }
+  })
+})
+
+describe('skill items', () => {
+  it('every player skill produces a scroll and a tome', () => {
+    for (const id of PLAYER_SKILL_IDS) {
+      expect(scrollFor(id).id).toBe(`scroll_${id}`)
+      expect(tomeFor(id).id).toBe(`tome_${id}`)
+    }
+  })
+
+  it('skill items are registered in ITEMS', () => {
+    expect(Object.keys(ITEMS).length).toBeGreaterThanOrEqual(Object.keys(SKILL_SCROLLS).length + Object.keys(SKILL_TOMES).length)
+    for (const [id, item] of Object.entries(SKILL_SCROLLS)) {
+      expect(ITEMS[id], `scroll ${id}`).toBe(item)
+    }
+    for (const [id, item] of Object.entries(SKILL_TOMES)) {
+      expect(ITEMS[id], `tome ${id}`).toBe(item)
+    }
+  })
+
+  it('enemy-only skills are excluded from the player list', () => {
+    for (const id of ENEMY_ONLY_SKILL_IDS) {
+      expect(PLAYER_SKILL_IDS).not.toContain(id)
+    }
+    expect(PLAYER_SKILL_IDS.length).toBeGreaterThan(0)
+  })
+
+  it('scrolls and tomes resolve to a known skill and are non-empty', () => {
+    for (const id of PLAYER_SKILL_IDS) {
+      const scroll = scrollFor(id)
+      const tome = tomeFor(id)
+      expect(scroll.rarity).toBeDefined()
+      expect(tome.rarity).toBeDefined()
+      expect(scroll.castSkill).toBe(id)
+      expect(tome.skill).toBe(id)
     }
   })
 })

@@ -1,8 +1,10 @@
 import type { ItemDef } from '../types'
+import { SKILL_SCROLLS, SKILL_TOMES } from './skill-items'
 
 /**
- * Item definitions (gear templates, consumables, skill tomes).
+ * Item definitions (gear templates, consumables, skill tomes, scrolls).
  * Durability is per-instance (see `docs/durability.md`), not per-definition.
+ * Skill tomes/scrolls are auto-generated from `SKILLS` (see `./skill-items`).
  */
 export const ITEMS: Record<string, ItemDef> = {
   // Weapons
@@ -70,14 +72,16 @@ export const ITEMS: Record<string, ItemDef> = {
     id: 'greater_health_potion', name: 'Greater Health Potion', type: 'consumable',
     rarity: 'rare', use: { healHp: 200 }, value: 90,
   },
+  mana_potion: {
+    id: 'mana_potion', name: 'Mana Potion', type: 'consumable', rarity: 'common',
+    use: { healMp: 30 }, value: 35,
+  },
+  greater_mana_potion: {
+    id: 'greater_mana_potion', name: 'Greater Mana Potion', type: 'consumable',
+    rarity: 'rare', use: { healMp: 80 }, value: 100,
+  },
 
-  // Skill tomes
-  tome_heal: {
-    id: 'tome_heal', name: 'Tome: Heal', type: 'tome', rarity: 'rare',
-    skill: 'heal', value: 400,
-  },
-  tome_fireball: {
-    id: 'tome_fireball', name: 'Tome: Fireball', type: 'tome', rarity: 'rare',
-    skill: 'fireball', value: 420,
-  },
+  // Skill tomes & scrolls (auto-generated from SKILLS, see ./skill-items)
+  ...SKILL_SCROLLS,
+  ...SKILL_TOMES,
 }

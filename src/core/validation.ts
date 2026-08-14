@@ -12,6 +12,10 @@ import type {
   Box,
   Inventory,
   GearInstance,
+  ActiveRun,
+  ShopStock,
+  RecruitOffer,
+  RunNode,
 } from './types'
 
 export class ValidationError extends Error {
@@ -100,6 +104,68 @@ function validateInventory(v: unknown, path: string): Inventory {
   return v as unknown as Inventory
 }
 
+function validateShopStock(v: unknown, path: string): ShopStock {
+  if (!isRecord(v)) throw new ValidationError(`${path}: expected object`)
+  if (!Array.isArray(v.always) || !v.always.every(isString)) {
+    throw new ValidationError(`${path}.always: expected string[]`)
+  }
+  if (!isRecord(v.rotating)) throw new ValidationError(`${path}.rotating: expected object`)
+  for (const key of ['gear', 'skills'] as const) {
+    if (!Array.isArray(v.rotating[key]) || !v.rotating[key].every(isString)) {
+      throw new ValidationError(`${path}.rotating.${key}: expected string[]`)
+    }
+  }
+  return v as unknown as ShopStock
+}
+
+function validateRecruitOffer(v: unknown, path: string): RecruitOffer {
+  if (!isRecord(v)) throw new ValidationError(`${path}: expected object`)
+  if (!isString(v.id)) throw new ValidationError(`${path}.id: expected string`)
+  validateCharacter(v.character, `${path}.character`)
+  if (!isNumber(v.price)) throw new ValidationError(`${path}.price: expected number`)
+  return v as unknown as RecruitOffer
+}
+
+function validateRunNode(v: unknown, path: string): RunNode {
+  if (!isRecord(v)) throw new ValidationError(`${path}: expected object`)
+  if (!isString(v.type)) throw new ValidationError(`${path}.type: expected string`)
+  if (!isNumber(v.index)) throw new ValidationError(`${path}.index: expected number`)
+  if (v.choices !== undefined) {
+    if (
+      !Array.isArray(v.choices) ||
+      !v.choices.every((c) => isRecord(c) && isString(c.type) && isString(c.label))
+    ) {
+      throw new ValidationError(`${path}.choices: expected {type,label}[]`)
+    }
+  }
+  if (v.enemySquad !== undefined) {
+    if (!Array.isArray(v.enemySquad) || !v.enemySquad.every((e) => isRecord(e) && isString(e.id))) {
+      throw new ValidationError(`${path}.enemySquad: expected enemy defs`)
+    }
+  }
+  if (v.gold !== undefined && !isNumber(v.gold)) throw new ValidationError(`${path}.gold: expected number`)
+  return v as unknown as RunNode
+}
+
+function validateActiveRun(v: unknown, path: string): ActiveRun {
+  if (!isRecord(v)) throw new ValidationError(`${path}: expected object`)
+  for (const key of ['seed', 'profileId', 'status'] as const) {
+    if (!isString(v[key])) throw new ValidationError(`${path}.${key}: expected string`)
+  }
+  if (!Array.isArray(v.party) || !v.party.every(isString)) {
+    throw new ValidationError(`${path}.party: expected string[]`)
+  }
+  if (!isNumber(v.length)) throw new ValidationError(`${path}.length: expected number`)
+  if (!Array.isArray(v.nodes)) throw new ValidationError(`${path}.nodes: expected array`)
+  v.nodes.forEach((n, i) => validateRunNode(n, `${path}.nodes[${i}]`))
+  if (!isNumber(v.currentNodeIndex)) throw new ValidationError(`${path}.currentNodeIndex: expected number`)
+  if (!isNumber(v.goldEarned)) throw new ValidationError(`${path}.goldEarned: expected number`)
+  if (!Array.isArray(v.drops) || !v.drops.every(isString)) {
+    throw new ValidationError(`${path}.drops: expected string[]`)
+  }
+  return v as unknown as ActiveRun
+}
+
 function validateProfile(v: unknown, path: string): PlayerProfile {
   if (!isRecord(v)) throw new ValidationError(`${path}: expected object`)
   for (const key of ['profileId', 'displayName'] as const) {
@@ -123,6 +189,11 @@ function validateProfile(v: unknown, path: string): PlayerProfile {
   for (const key of ['totalRuns', 'wins', 'losses'] as const) {
     if (!isNumber(v.stats[key])) throw new ValidationError(`${path}.stats.${key}: expected number`)
   }
+  if (v.shop !== undefined) validateShopStock(v.shop, `${path}.shop`)
+  if (v.recruitment !== undefined) {
+    if (!Array.isArray(v.recruitment)) throw new ValidationError(`${path}.recruitment: expected array`)
+    v.recruitment.forEach((r, i) => validateRecruitOffer(r, `${path}.recruitment[${i}]`))
+  }
   if (!isNumber(v.createdAt)) throw new ValidationError(`${path}.createdAt: expected number`)
   return v as unknown as PlayerProfile
 }
@@ -132,5 +203,6 @@ export function validateSaveFile(v: unknown): SaveFile {
   if (!isNumber(v.schemaVersion)) throw new ValidationError('save.schemaVersion: expected number')
   if (!isNumber(v.savedAt)) throw new ValidationError('save.savedAt: expected number')
   validateProfile(v.profile, 'save.profile')
+  if (v.activeRun !== undefined) validateActiveRun(v.activeRun, 'save.activeRun')
   return v as unknown as SaveFile
 }

@@ -17,6 +17,8 @@ function makeProfile(): PlayerProfile {
     inventory: { items: [], gear: [] },
     party: [],
     stats: { totalRuns: 0, wins: 0, losses: 0 },
+    shop: { always: [], rotating: { gear: [], skills: [] } },
+    recruitment: [],
     createdAt: 0,
   }
 }
