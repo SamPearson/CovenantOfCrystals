@@ -52,15 +52,26 @@ working document — update it as decisions land.
   Docs: `combat.md` (full CTB spec).
 
 ### Phase 3 — Run loop
-- [ ] Seeded run generation (fixed-length; lengths 1/3/5/10/15/20; branching
-  paths; difficulty-by-numbers curve)
+- [ ] Seeded run generation (lengths 3/5/10 this phase — 1/15/20 later with
+  difficulty bands; branching paths; difficulty-by-numbers curve)
 - [ ] Rest nodes every 5 battles (recovery — exact features to tune in Phase 5)
 - [ ] Battle → rewards → next node → boss → run end
 - [ ] Permadeath resolution (immediate, no revives) + survivor XP/gear payout
 - [ ] Durability tick-down at run resolution
 - [ ] Result screen + rewards to meta (gold, drops, unlocks)
+- [ ] Items wired in-battle (potions, scrolls) + usable on the run map between
+  battles
+- [ ] Meta shop tab (always potions + rotating 4 gear / 3 skill items, refresh
+  per run) + sell gear for gold
+- [ ] Recruitment tab (2–3 random level-1 permanent recruits, flat price,
+  refresh per run)
+- [ ] Auto-generated skill items: Scroll of X / Tome of X for every
+  player-facing skill
+- **Plan:** `workspace/phase-3-run-loop-plan.md` (milestones M1–M9)
 - **Exit criteria:** a full run can be played start-to-finish and meta
-  progression is visible. Docs: `runs-and-gauntlet.md`.
+  progression is visible; gold/drops are earned, spendable (shop) and have a
+  sink (shop + recruitment); permadeath losses recoverable via recruitment.
+  Docs: `runs-and-gauntlet.md`.
 
 ### Phase 4 — Autobattle & idle
 - [ ] Per-character AI scripts (presets) using the same engine
@@ -155,6 +166,23 @@ working document — update it as decisions land.
 | 41 | Battle outcome surface? | The engine returns a **`BattleResult` outcome contract** (status, koIds, survivors, xpAwarded, drops, log); the run layer (Phase 3) applies permadeath/rewards (`combat.md` §7) |
 | 42 | Phase 2 test battle scope? | **Attack / Skill / Defend + a fixed scripted squad; manual control only.** Items and escape are engine-ready but not wired in the scene (`combat.md` §4) |
 
+### Locked (round 5 — Phase 3 run loop / fun systems)
+
+| # | Question | Decision |
+| --- | --- | --- |
+| 43 | Shop placement & refresh? | **One meta shop tab on the main view**, between runs. Always-stock potions + rotating stock of gear & skill items. Stock **regenerates each time a run completes**. No in-run shop nodes this phase (`phase-3-run-loop-plan.md` §3) |
+| 44 | Scroll/tome coverage? | **Auto-generate** a Scroll and Tome of every player-facing skill from the `SKILLS` dataset (enemy-only skills excluded); the shop draws from the full pool (`phase-3-run-loop-plan.md` §3) |
+| 45 | Tome learning restriction? | **Open to any character** — a tome permanently teaches the skill to whoever uses it; a class-ineffective skill is the player's call (`phase-3-run-loop-plan.md` §3) |
+| 46 | Item usage scope? | Wire the **Item action in-battle** (potions, scrolls) **and** on the run map between battles; rest nodes still heal (`phase-3-run-loop-plan.md` §3) |
+| 47 | Gear durability in P3? | **All shop/drop gear is permanent in P3**; durability ticking still runs at run resolution (trivially a no-op); expiring assets + pricing arrive with Phase 5 (`phase-3-run-loop-plan.md` §3) |
+| 48 | Recruitment shape? | **2–3 random characters per refresh**: random class from unlocked, **level 1, permanent**, each a **flat gold price**; refresh on run completion (`phase-3-run-loop-plan.md` §3) |
+| 49 | XP & leveling in P3? | **Survivors accumulate XP (visible) but no level-ups** until Phase 4; rewards this phase are gold + drops + shopping (`phase-3-run-loop-plan.md` §3) |
+| 50 | Drop banking? | **Drops bank at run resolution** — accumulate on the `ActiveRun`, convert to persistent inventory at run end; partial payout on failure/abandon (`phase-3-run-loop-plan.md` §3) |
+| 51 | Run map structure? | **Minimal branching map** — each step offers 2–3 visible next-node choices (battle / elite / rest), honoring #19; branch *detail* stays a Phase 5 concern (`phase-3-run-loop-plan.md` §3) |
+| 52 | Rotating stock size? | Always potions (Health / Greater Health / Mana / Greater Mana) + **4 gear + 3 skill items** per refresh (`phase-3-run-loop-plan.md` §3) |
+| 53 | Run lengths offered? | **Starter subset 3 / 5 / 10** at run start (1/15/20 later with difficulty bands) (`phase-3-run-loop-plan.md` §3) |
+| 54 | Selling? | **Sell gear for gold** from the shop tab (unwanted drops become a second gold source); consumables are not sellable in P3 (`phase-3-run-loop-plan.md` §3) |
+
 ### Still open
 
 | # | Question | Where it lives |
@@ -163,8 +191,8 @@ working document — update it as decisions land.
 | 2 | Party composition synergies? | `metagame.md` |
 | 3 | What exactly rest points offer? (Deliberately open — tuning lever) | `runs-and-gauntlet.md` |
 | 4 | Autobattle summary-skip? | `autobattle-and-idle.md` |
-| 5 | Drops banked immediately vs. held mid-run? | `data-model.md` |
-| 6 | State library / Vitest / IndexedDB choices? | `architecture.md` |
+| 5 | State library / Vitest / IndexedDB choices? | `architecture.md` |
+| 6 | Mock API shape when shops/recruitment/seeded runs need dynamic data? | `architecture.md` §6 |
 
 ---
 

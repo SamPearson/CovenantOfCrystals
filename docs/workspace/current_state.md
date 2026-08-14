@@ -71,3 +71,12 @@ Phase 2 milestone 5 is built:
 
 Phase 2 (milestones 1–5) is complete. Phase 3 (runs & metagame) is next.
 
+Phase 3 has a thorough plan:
+`workspace/phase-3-run-loop-plan.md`, with scope settled (milestones M1–M9)
+and the design decisions logged in `roadmap.md` (round 5). High-level shape:
+seeded branching runs (3/5/10), battle rewards (gold/XP/drops), items wired
+in-battle + on the run map, a meta shop tab (potions + rotating gear/skill
+items, sell gear) and a recruitment tab (2–3 random level-1 recruits) that
+refresh per run, permadeath + durability resolution, and a result screen.
+Leveling is deferred to Phase 4 (XP accumulates, no level-ups).
+
