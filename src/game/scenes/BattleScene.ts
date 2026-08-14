@@ -17,11 +17,12 @@ import { uiText, makePanel, makeSubpanel, makeButton, makeBadge, makeScrollRegio
 import type { Button, ScrollRegion } from '../ui/widgets'
 import { STONE_BG_KEY, createStoneTextures } from '../ui/textures'
 import { truncate } from '../ui/format'
-import { initStore, getProfile } from '../../core/store'
+import { initStore, getProfile, mutate } from '../../core/store'
+import { removeItem } from '../../core/inventory'
 import { createBattle, performAction, chooseEnemyAction, getBattleResult } from '../../core/combat/battle'
 import { peekNext } from '../../core/combat/timeline'
 import { createRng } from '../../core/rng/rng'
-import { getSkill } from '../../core/data'
+import { getSkill, getItem } from '../../core/data'
 import { scriptedSquad, partyForBattle } from '../battle/battle-setup'
 import { snapshotVitals, diffVitals } from '../battle/battle-vitals'
 import { statusIcon } from '../battle/status-icons'
@@ -49,6 +50,8 @@ export class BattleScene extends Phaser.Scene {
   private currentActorId: string | null = null
   private cardCenters = new Map<string, { x: number; y: number }>()
   private actionButtons: Button[] = []
+  private itemMode = false
+  private pendingItem: { itemId: string; targetSide: 'ally' | 'enemy' } | null = null
   private queueChips: Phaser.GameObjects.Container[] = []
   private enemyCards: Phaser.GameObjects.Container[] = []
   private partyCards: Phaser.GameObjects.Container[] = []
@@ -196,7 +199,9 @@ export class BattleScene extends Phaser.Scene {
   private dispatch(action: BattleAction): void {
     if (!this.currentActorId || this.battle.over) return
     const snap = snapshotVitals(this.battle)
+    const consumed = action.kind === 'item' && action.itemId ? action.itemId : undefined
     performAction(this.battle, this.currentActorId, action, this.rng)
+    if (consumed) mutate((p) => removeItem(p, consumed, 1))
     const deltas = diffVitals(snap, this.battle)
     this.currentActorId = null
     this.render()
@@ -268,6 +273,16 @@ export class BattleScene extends Phaser.Scene {
 
     this.cardCenters.set(actor.id, { x: x + w / 2, y: y + CARD_H / 2 })
 
+    if (this.pendingItem) {
+      const sideOk =
+        this.pendingItem.targetSide === 'ally' ? actor.side === 'player' : actor.side === 'enemy'
+      if (sideOk && !actor.ko) {
+        card.setSize(w, CARD_H)
+        card.setInteractive({ useHandCursor: true })
+        card.on('pointerdown', () => this.onPickTarget(actor.id))
+      }
+    }
+
     if (actor.ko) {
       const veil = this.add.rectangle(w / 2, CARD_H / 2, w, CARD_H, 0x000000, 0.55).setRounded(8)
       const ko = uiText(this, 0, 0, 'K.O.', { size: 'lg', color: t.bad, family: 'display', align: 'center' }, card)
@@ -324,19 +339,70 @@ export class BattleScene extends Phaser.Scene {
 
     const actor = this.currentActorId ? this.battle.actors[this.currentActorId] : undefined
     if (!actor || this.busy) {
+      this.itemMode = false
+      this.pendingItem = null
       this.actionPrompt.setText(this.busy ? 'Enemy acting…' : '')
       return
     }
 
-    if (actor.side === 'player') {
-      this.actionPrompt.setText(`${actor.name} — choose an action.`)
-    } else {
+    if (actor.side !== 'player') {
+      this.itemMode = false
+      this.pendingItem = null
       return
     }
 
+    const { pad } = THEME.spacing
+    const btnW = 120
+    const btnH = THEME.button.height
+    let bx = pad
+    let by = 40
+    const addButton = (label: string, onClick: () => void, enabled = true): void => {
+      if (bx + btnW > ACTION_PANEL_W - pad) {
+        bx = pad
+        by += btnH + 8
+      }
+      const btn = makeButton(this, bx, by, label, onClick, { width: btnW, height: btnH }, this.actionPanel)
+      btn.setDisabled(!enabled)
+      this.actionButtons.push(btn)
+      bx += btnW + 8
+    }
+
+    if (this.pendingItem) {
+      const item = getItem(this.pendingItem.itemId)
+      this.actionPrompt.setText(`Choose a target for ${item.name}.`)
+      addButton('Cancel', () => {
+        this.pendingItem = null
+        this.render()
+      })
+      return
+    }
+
+    if (this.itemMode) {
+      this.actionPrompt.setText('Choose an item.')
+      for (const entry of getProfile().inventory.items) {
+        if (entry.count <= 0) continue
+        const item = getItem(entry.itemId)
+        if (!item.use && !item.castSkill) continue
+        addButton(`×${entry.count} ${truncate(item.name, 10)}`, () => this.selectItem(entry.itemId))
+      }
+      addButton('Cancel', () => {
+        this.itemMode = false
+        this.render()
+      })
+      return
+    }
+
+    this.actionPrompt.setText(`${actor.name} — choose an action.`)
+
+    const hasItems = getProfile().inventory.items.some((entry) => {
+      if (entry.count <= 0) return false
+      const item = getItem(entry.itemId)
+      return !!item.use || !!item.castSkill
+    })
     const actions: { kind: BattleAction['kind']; skillId?: string; label: string; enabled: boolean }[] = [
       { kind: 'attack', label: 'Attack', enabled: true },
       { kind: 'defend', label: 'Defend', enabled: true },
+      { kind: 'item', label: 'Item', enabled: hasItems },
     ]
     for (const skillId of (actor.skills ?? []).slice(0, 6)) {
       const skill = getSkill(skillId)
@@ -345,29 +411,49 @@ export class BattleScene extends Phaser.Scene {
       actions.push({ kind: 'skill', skillId, label: skill.name, enabled: !onCooldown && affordable })
     }
 
-    const { pad } = THEME.spacing
-    let bx = pad
-    let by = 40
-    const btnW = 120
-    const btnH = THEME.button.height
     for (const a of actions) {
-      if (bx + btnW > ACTION_PANEL_W - pad) {
-        bx = pad
-        by += btnH + 8
-      }
-      const btn = makeButton(
-        this,
-        bx,
-        by,
+      addButton(
         truncate(a.label, 14),
-        () => this.dispatch({ kind: a.kind, skillId: a.skillId }),
-        { width: btnW, height: btnH },
-        this.actionPanel,
+        () => {
+          if (a.kind === 'item') {
+            this.itemMode = true
+            this.render()
+          } else {
+            this.dispatch({ kind: a.kind, skillId: a.skillId })
+          }
+        },
+        a.enabled,
       )
-      btn.setDisabled(!a.enabled)
-      this.actionButtons.push(btn)
-      bx += btnW + 8
     }
+  }
+
+  /** Opens targeting for an item, or uses it directly when no target is needed. */
+  private selectItem(itemId: string): void {
+    const item = getItem(itemId)
+    const skill = item.castSkill ? getSkill(item.castSkill) : undefined
+    if (skill && skill.targets !== 'single') {
+      this.dispatchItem(itemId)
+      return
+    }
+    const targetSide = skill
+      ? skill.kind === 'damage' || skill.kind === 'debuff'
+        ? 'enemy'
+        : 'ally'
+      : 'ally'
+    this.pendingItem = { itemId, targetSide }
+    this.render()
+  }
+
+  private onPickTarget(targetId: string): void {
+    const item = this.pendingItem
+    if (!item) return
+    this.dispatchItem(item.itemId, targetId)
+  }
+
+  private dispatchItem(itemId: string, targetId?: string): void {
+    this.pendingItem = null
+    this.itemMode = false
+    this.dispatch({ kind: 'item', itemId, targetId })
   }
 
   // ---------------------------------------------------------------- queue

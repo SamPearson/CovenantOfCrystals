@@ -325,3 +325,83 @@ describe('battle orchestration (phase 2, M4)', () => {
     expect(run(42)).toEqual(run(42))
   })
 })
+
+describe('scroll items (phase 3, M5)', () => {
+  it('a scroll casts its skill with no MP cost, no ownership, and no cooldown', () => {
+    const aria = createCharacter({ classId: 'knight', name: 'Aria' })
+    const battle = createBattle([aria], [ENEMIES.slime!], 1)
+    const slime = battle.actors['slime#0']!
+    slime.hp = 1000
+    const knight = battle.actors[aria.id]!
+    const mpBefore = knight.mp
+    const rng = createRng(1)
+    actNext(battle, { kind: 'item', itemId: 'scroll_fireball' }, rng)
+    expect(slime.hp).toBeLessThan(1000)
+    expect(knight.mp).toBe(mpBefore)
+    expect(knight.cooldowns?.['fireball']).toBeUndefined()
+    expect(battle.log[0]!.text).toContain('uses Scroll: Fireball')
+  })
+
+  it('a scroll of an AoE skill hits every enemy', () => {
+    const zed = createCharacter({ classId: 'mage', name: 'Zed', level: 5 })
+    const battle = createBattle([zed], [ENEMIES.slime!, ENEMIES.slime!], 1)
+    battle.actors['slime#0']!.hp = 1000
+    battle.actors['slime#1']!.hp = 1000
+    const rng = createRng(1)
+    actNext(battle, { kind: 'item', itemId: 'scroll_flame_wave' }, rng)
+    expect(battle.actors['slime#0']!.hp).toBeLessThan(1000)
+    expect(battle.actors['slime#1']!.hp).toBeLessThan(1000)
+  })
+
+  it("a scroll of a heal skill heals its target, scaled by the user's MAG", () => {
+    const aria = createCharacter({ classId: 'knight', name: 'Aria' })
+    const battle = createBattle([aria], [ENEMIES.slime!], 1)
+    const knight = battle.actors[aria.id]!
+    knight.hp = 20
+    const rng = createRng(1)
+    actNext(battle, { kind: 'item', itemId: 'scroll_greater_heal', targetId: aria.id }, rng)
+    expect(knight.hp).toBeGreaterThan(20)
+  })
+
+  it('a scroll applies the skill status effect', () => {
+    const aria = createCharacter({ classId: 'knight', name: 'Aria' })
+    const battle = createBattle([aria], [ENEMIES.slime!], 1)
+    const slime = battle.actors['slime#0']!
+    slime.hp = 1000
+    const rng = createRng(1)
+    actNext(battle, { kind: 'item', itemId: 'scroll_poison_blade' }, rng)
+    expect(slime.statuses.some((s) => s.kind === 'poison')).toBe(true)
+  })
+
+  it('a buff scroll applies statBuff to every ally', () => {
+    const aria = createCharacter({ classId: 'knight', name: 'Aria' })
+    const lena = createCharacter({ classId: 'healer', name: 'Lena', level: 3 })
+    const battle = createBattle([aria, lena], [ENEMIES.slime!], 1)
+    const rng = createRng(1)
+    actNext(battle, { kind: 'item', itemId: 'scroll_battle_anthem' }, rng)
+    for (const id of [aria.id, lena.id]) {
+      expect(battle.actors[id]!.statuses.some((s) => s.kind === 'statBuff')).toBe(true)
+    }
+  })
+
+  it('a scroll costs the item action delay', () => {
+    const aria = createCharacter({ classId: 'knight', name: 'Aria' })
+    const battle = createBattle([aria], [ENEMIES.slime!], 1)
+    const rng = createRng(1)
+    actNext(battle, { kind: 'item', itemId: 'scroll_fireball' }, rng)
+    const knightEntry = battle.queue.find((e) => e.actorId === aria.id)!
+    const expected = BALANCE.actionDelays.item * (BALANCE.spdRef / 6)
+    expect(knightEntry.nextAt).toBeCloseTo(expected, 3)
+  })
+
+  it('a mana potion restores MP mid-battle', () => {
+    const aria = createCharacter({ classId: 'knight', name: 'Aria' })
+    const battle = createBattle([aria], [ENEMIES.slime!], 1)
+    const knight = battle.actors[aria.id]!
+    knight.mp = 10
+    const rng = createRng(1)
+    actNext(battle, { kind: 'item', itemId: 'mana_potion', targetId: aria.id }, rng)
+    expect(knight.mp).toBe(BALANCE.maxMp)
+    expect(battle.log[0]!.text).toContain('recovers 20 MP')
+  })
+})

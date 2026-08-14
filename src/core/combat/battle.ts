@@ -200,7 +200,7 @@ export function performAction(
       delay = resolveSkill(battle, actor, action, rng, push)
       break
     case 'item':
-      delay = resolveItem(battle, actor, action, push)
+      delay = resolveItem(battle, actor, action, rng, push)
       break
   }
 
@@ -265,7 +265,26 @@ function resolveSkill(
 
   actor.mp -= skill.cost
   if (skill.cooldown) (actor.cooldowns ??= {})[skillId] = skill.cooldown
-  const targets = resolveTargets(battle, actor, skill, action.targetId)
+  castSkill(battle, actor, skill, action.targetId, rng, push)
+
+  return delay
+}
+
+/**
+ * Applies a skill to its resolved targets (damage / heal / utility / status).
+ * Shared by the Skill action and scroll items (`resolveItem`), which bypass the
+ * MP / cooldown / ownership checks — the "spells in item form" extension
+ * `docs/combat.md` §11 reserves.
+ */
+function castSkill(
+  battle: BattleState,
+  actor: BattleActor,
+  skill: SkillDef,
+  targetId: string | undefined,
+  rng: Rng,
+  push: (text: string, who?: string) => void,
+): void {
+  const targets = resolveTargets(battle, actor, skill, targetId)
 
   if (skill.kind === 'damage') {
     const scaling =
@@ -309,18 +328,26 @@ function resolveSkill(
       }
     }
   }
-
-  return delay
 }
 
 function resolveItem(
   battle: BattleState,
   actor: BattleActor,
   action: BattleAction,
+  rng: Rng,
   push: (text: string, who?: string) => void,
 ): number {
   if (!action.itemId) throw new Error(`item action without an itemId for ${actor.id}`)
   const item = getItem(action.itemId)
+
+  // Scrolls cast their skill with no MP cost and no cooldown (`docs/combat.md` §11).
+  if (item.castSkill) {
+    const skill = getSkill(item.castSkill)
+    push(`${actor.name} uses ${item.name}.`, actor.id)
+    castSkill(battle, actor, skill, action.targetId, rng, push)
+    return BALANCE.actionDelays.item
+  }
+
   const use = item.use
   if (!use) throw new Error(`item "${item.id}" has no use effect`)
 
