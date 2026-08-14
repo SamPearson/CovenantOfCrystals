@@ -23,6 +23,8 @@ export interface RunBalanceConfig {
   dropChance: number
   /** Drop pool weights per item type (relative). */
   dropWeights: { gear: number; consumable: number; skillItem: number }
+  /** Fraction of run gold/drops banked at resolution, per end state (M3). */
+  runPayout: { won: number; lost: number; abandoned: number }
 }
 
 export interface EconomyConfig {
@@ -94,6 +96,7 @@ export const BALANCE: BalanceConfig = {
     goldVariance: [0.8, 1.2],
     dropChance: 0.5,
     dropWeights: { gear: 1, consumable: 1, skillItem: 0.5 },
+    runPayout: { won: 1, abandoned: 0.5, lost: 0.25 },
   },
   economy: {
     sellRatio: 0.5,

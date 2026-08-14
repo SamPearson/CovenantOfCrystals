@@ -221,6 +221,20 @@ export interface RunResult {
   xpGained: Record<string, number>
 }
 
+/**
+ * The seeded reward outcome of a won battle (`phase-3-run-loop-plan.md` §5, M3).
+ * Gold/drops are rolled with the battle's seeded RNG; `xp` is awarded per
+ * surviving party member (no leveling, decision S7) and accumulates onto the
+ * character so it survives the run.
+ */
+export interface RewardRoll {
+  gold: number
+  /** itemIds banked to inventory at run resolution (S8). */
+  drops: string[]
+  /** survivorId → xp awarded (sum of defeated squad xp). */
+  xp: Record<string, number>
+}
+
 export interface ShopStock {
   /** Potion itemIds always on sale (S10). */
   always: string[]
