@@ -10,6 +10,9 @@
  *   final     = ratio-damage × elementMultiplier × defendModifier
  *               × variance × crit     (in that order)
  *
+ * Final damage (`finalizeDamage`) and outgoing healing (`healMagic`) are
+ * **rounded to the nearest whole number** before being applied to HP.
+ *
  * Before damage, a hit roll passes `accuracy × (1 − dodge)`; a missed attack
  * deals 0 via whichever layer calls `hitCheck`. Crit chance derives from
  * SPD/gear/class (Rogue higher) — the roll itself is `rng() < critRate`.
@@ -72,7 +75,8 @@ export interface FinalizeOptions {
 
 /**
  * Apply `element × defend × variance × crit` in order to a ratio-damage value.
- * `rating` is the output of `physicalDamage` / `magicalDamage`.
+ * `rating` is the output of `physicalDamage` / `magicalDamage`. The result is
+ * rounded to the nearest whole number — damage dealt is always an integer.
  */
 export function finalizeDamage(
   rating: number,
@@ -85,7 +89,7 @@ export function finalizeDamage(
   const defend = opts.defending ? 0.5 : 1
   const variance = varianceFactor(opts.varianceRoll, balance.variance)
   const crit = opts.crit ? balance.critDamage : 1
-  return rating * elem * defend * variance * crit
+  return Math.round(rating * elem * defend * variance * crit)
 }
 
 /**
@@ -106,13 +110,14 @@ export function rollCrit(rng: Rng, rate: number = BALANCE.critRate): boolean {
 
 /**
  * Magic heal: `basePower × (MAG / MAG_REF)` (`docs/combat.md` §5). Scales with
- * the caster's MAG; RES does not modify outgoing healing.
+ * the caster's MAG; RES does not modify outgoing healing. The result is rounded
+ * to the nearest whole number — healing applied is always an integer.
  */
 export function healMagic(power: number, mag: number, magRef: number = BALANCE.magRef): number {
   assertNonNegative(power, 'power')
   assertNonNegative(mag, 'mag')
   assertPositive(magRef, 'magRef')
-  return power * (mag / magRef)
+  return Math.round(power * (mag / magRef))
 }
 
 /** Item heal: flat `healHp`, no scaling (`docs/combat.md` §5). */

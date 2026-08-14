@@ -154,8 +154,8 @@ working document — update it as decisions land.
 | # | Question | Decision |
 | --- | --- | --- |
 | 31 | Turn order model? | **Conditional Turn-Based (CTB)**: dynamic timeline queue with reinsertion. SPD sets climb rate; action weight/delay (explicit `SkillDef.delay`) sets how far you fall back. No fixed rounds; ties by stable rule (`combat.md` §2) |
-| 32 | Damage formula? | **Ratio-based, unclamped**: `base × (ATK_eff/DEF_eff)` physical, `base × (MAG_eff/RES_eff)` magical, then element × defend × variance (0.9–1.1) × crit (~1.5×) (`combat.md` §5) |
-| 33 | Healing formula? | **Magic heals scale with caster MAG** (`heal = basePower × (MAG/MAG_REF)`); **items heal flat**. RES is magic defense only — it does **not** boost outgoing healing (`combat.md` §5) |
+| 32 | Damage formula? | **Ratio-based, unclamped**: `base × (ATK_eff/DEF_eff)` physical, `base × (MAG_eff/RES_eff)` magical, then element × defend × variance (0.9–1.1) × crit (~1.5×). **Final damage rounded to the nearest whole number** (`combat.md` §5) |
+| 33 | Healing formula? | **Magic heals scale with caster MAG** (`heal = basePower × (MAG/MAG_REF)`); **items heal flat**. **Healing rounded to the nearest whole number**. RES is magic defense only — it does **not** boost outgoing healing (`combat.md` §5) |
 | 34 | Status roster in v1? | **statBuff, statDebuff, burn, poison, regen, sleep, blind, freeze**. `shield`/`taunt`/`stun` stay in the types stub but are out of the Phase 2 engine (`combat.md` §5) |
 | 35 | Buff/debuff stacking? | **Per-status stacks with a cap** (default 2×); each application adds its own duration (`combat.md` §5) |
 | 36 | What is a "turn" of duration? | **The affected actor's own turns** — a 3-turn buff expires after that character takes 3 turns; cooldowns count the caster's own turns (`combat.md` §5) |

@@ -54,9 +54,15 @@ describe('finalizeDamage (element × defend × variance × crit)', () => {
     expect(finalizeDamage(45, { varianceRoll: VAR_ONE })).toBe(45)
   })
 
+  it('damage is rounded to the nearest whole number', () => {
+    // 45 × 1.1 (variance max) = 49.5 → rounds to 50
+    expect(finalizeDamage(45, { varianceRoll: 1 })).toBe(50)
+  })
+
   it('element multiplier applies (weak = 2×, resist = 0.5×)', () => {
     expect(finalizeDamage(45, { attackElement: 'fire', defendElement: 'frost', varianceRoll: VAR_ONE })).toBe(90)
-    expect(finalizeDamage(45, { attackElement: 'fire', defendElement: 'water', varianceRoll: VAR_ONE })).toBe(22.5)
+    // 45 × 0.5 = 22.5 → rounds to 23
+    expect(finalizeDamage(45, { attackElement: 'fire', defendElement: 'water', varianceRoll: VAR_ONE })).toBe(23)
   })
 
   it('every element chart pair resolves from the data table', () => {
@@ -73,11 +79,12 @@ describe('finalizeDamage (element × defend × variance × crit)', () => {
   })
 
   it('defending halves damage', () => {
-    expect(finalizeDamage(45, { varianceRoll: VAR_ONE, defending: true })).toBe(22.5)
+    // 45 × 0.5 = 22.5 → rounds to 23
+    expect(finalizeDamage(45, { varianceRoll: VAR_ONE, defending: true })).toBe(23)
   })
 
   it('crit multiplies by BALANCE.critDamage (~1.5×)', () => {
-    expect(finalizeDamage(45, { varianceRoll: VAR_ONE, crit: true })).toBeCloseTo(45 * BALANCE.critDamage)
+    expect(finalizeDamage(45, { varianceRoll: VAR_ONE, crit: true })).toBe(Math.round(45 * BALANCE.critDamage))
   })
 
   it('variance stays inside [0.9, 1.1] incl. the roll endpoints', () => {
@@ -100,7 +107,7 @@ describe('finalizeDamage (element × defend × variance × crit)', () => {
       varianceRoll: VAR_ONE,
       crit: true,
     })
-    expect(dmg).toBeCloseTo(45 * 2 * 0.5 * 1 * 1.5)
+    expect(dmg).toBe(Math.round(45 * 2 * 0.5 * 1 * BALANCE.critDamage))
   })
 })
 
@@ -153,6 +160,7 @@ describe('healing', () => {
     expect(healMagic(60, 40)).toBe(120)
     expect(healMagic(120, 10)).toBe(60)
     expect(healMagic(60, 20, 40)).toBe(30) // explicit MAG_REF
+    expect(healMagic(50, 15)).toBe(38) // 37.5 → rounds to 38
   })
 
   it('item heal is flat — no scaling', () => {

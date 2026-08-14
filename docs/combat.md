@@ -123,6 +123,9 @@ Applied in order:
   Base accuracy is 1.0; **blind halves the attacker's accuracy**. Dodge derives
   from SPD/gear. A missed attack deals 0. *(A standalone accuracy/block stat is
   out of v1 scope — see §11.)*
+- **rounding** — the **final** damage value is rounded to the nearest whole
+  number before being applied to HP (and shown in the battle log). The ratio,
+  element, variance and crit steps are computed in full precision first.
 
 The ATK/DEF ratio is **not clamped** (**decided**): extreme stat mismatches
 produce proportionally huge or tiny hits. Scouts exist so a bad matchup is
@@ -137,9 +140,11 @@ heal item:   heal = use.healHp            // flat — no scaling
 
 - **RES is magic defense only.** It does **not** modify outgoing healing.
 - Healing magic scales with the **caster's MAG**. Items heal a flat amount.
+- Both magic and item healing are **rounded to the nearest whole number**
+  before being applied to HP.
 - Gear augments, buffs on a healer, and other scaling sources are a designed
   future extension (not Phase 2).
-- `regen` heals a flat `power` amount on its tick.
+- `regen` heals a flat `power` amount on its tick (already a whole number).
 
 > **Data note:** heal skills in `src/core/data/skills.ts` currently carry
 > `scaling: 'hp'`. Under this decision they scale on the caster's MAG, so heal
