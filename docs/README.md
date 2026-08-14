@@ -1,6 +1,4 @@
-# Game Design Wiki
-
-> Working title: **_(TBD — see Open Questions in `roadmap.md`)_**
+# Covenant of Crystals
 
 A web-based roguelike team-battler. The player curates a persistent roster of
 characters (the "PC boxes"), equips a party with weapons, armor, and magic
