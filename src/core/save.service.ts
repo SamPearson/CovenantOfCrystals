@@ -7,6 +7,7 @@
 import { validateSaveFile } from './validation'
 import type { SaveFile } from './types'
 import { uuid } from './id'
+import { BALANCE } from './data/balance'
 
 export const SAVE_KEY = 'covenant.of.crystals.save'
 export const SCHEMA_VERSION = 1
@@ -54,7 +55,7 @@ export function createNewSave(profileId?: string, displayName?: string): SaveFil
     profile: {
       profileId: profileId ?? uuid(),
       displayName: displayName ?? 'Player',
-      gold: 0,
+      gold: BALANCE.economy.startingGold,
       unlockedClasses: ['knight'],
       characters: {},
       boxes: [],

@@ -99,7 +99,7 @@ describe('bankRunRewards', () => {
     const result = bankRunRewards(r, p)
 
     expect(result.goldBanked).toBe(100)
-    expect(p.gold).toBe(100)
+    expect(p.gold).toBe(BALANCE.economy.startingGold + 100)
     expect(result.gearBanked.length).toBe(1)
     expect(result.itemsBanked).toEqual(['health_potion', 'greater_health_potion'])
     expect(p.inventory.gear.length).toBe(1)
@@ -119,7 +119,7 @@ describe('bankRunRewards', () => {
     const result = bankRunRewards(r, p)
 
     expect(result.goldBanked).toBe(Math.round(100 * BALANCE.run.runPayout.abandoned))
-    expect(p.gold).toBe(result.goldBanked)
+    expect(p.gold).toBe(BALANCE.economy.startingGold + result.goldBanked)
     expect(result.gearBanked.length).toBe(1)
     expect(result.itemsBanked).toEqual([])
     expect(p.inventory.items).toEqual([])
@@ -147,7 +147,7 @@ describe('bankRunRewards', () => {
     expect(result.goldBanked).toBe(0)
     expect(result.gearBanked.length).toBe(0)
     expect(result.itemsBanked).toEqual([])
-    expect(p.gold).toBe(0)
+    expect(p.gold).toBe(BALANCE.economy.startingGold)
   })
 
   it('stacks duplicate consumable drops instead of doubling gear', () => {

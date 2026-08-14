@@ -28,6 +28,8 @@ export interface RunBalanceConfig {
 }
 
 export interface EconomyConfig {
+  /** Gold granted to a brand-new profile (M4). */
+  startingGold: number
   /** Fraction of item value returned when selling. */
   sellRatio: number
   /** Flat gold price of a recruitment offer (decision S6). */
@@ -99,6 +101,7 @@ export const BALANCE: BalanceConfig = {
     runPayout: { won: 1, abandoned: 0.5, lost: 0.25 },
   },
   economy: {
+    startingGold: 1500,
     sellRatio: 0.5,
     recruitPrice: 150,
     rotatingGear: 4,
