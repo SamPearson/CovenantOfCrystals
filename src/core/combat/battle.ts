@@ -137,6 +137,7 @@ export function performAction(
   if (!entry || entry.actorId !== actorId) {
     throw new Error(`cannot act: ${actorId} is not the next actor in the queue`)
   }
+  battle.turnTime = entry.nextAt
   battle.queue = removeActor(battle.queue, actorId)
 
   battle.turnCount += 1

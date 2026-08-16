@@ -34,6 +34,7 @@ function applyPermadeath(
   const seat = findCharacterBox(profile, characterId)
   if (seat) removeCharacterFromSlot(profile, seat.boxIndex, seat.slotIndex)
   delete profile.characters[characterId]
+  profile.party = profile.party.filter((id) => id !== characterId)
   run.party = run.party.filter((id) => id !== characterId)
 }
 

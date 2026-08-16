@@ -3,6 +3,7 @@ import { THEME, colorHex } from './ui/theme'
 import { BootScene } from './scenes/BootScene'
 import { MetaScene } from './scenes/MetaScene'
 import { BattleScene } from './scenes/BattleScene'
+import { RunScene } from './scenes/RunScene'
 
 export const GAME_WIDTH = 960
 export const GAME_HEIGHT = 540
@@ -18,6 +19,6 @@ export function startGame(parent: string | HTMLElement): Phaser.Game {
       mode: Phaser.Scale.FIT,
       autoCenter: Phaser.Scale.CENTER_BOTH,
     },
-    scene: [BootScene, MetaScene, BattleScene],
+    scene: [BootScene, MetaScene, BattleScene, RunScene],
   })
 }

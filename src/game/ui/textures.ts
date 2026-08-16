@@ -155,14 +155,23 @@ export function roundedFaceTextureKey(scene: Phaser.Scene, w: number, h: number,
   return key
 }
 
+/** Colors the stone textures were last built with (for idempotence). */
+let builtWith: { face: number; bg: number; bgVignette: number } | null = null
+
 /**
  * Generates the base stone textures for the active theme. Safe to call more
- * than once (existing textures are re-created with the current theme's colors).
- * Also purges cached rounded panel-face textures so every panel re-bakes with
- * the current face color after a theme change.
+ * than once; when the theme colors are unchanged it is a no-op, so live
+ * scene objects never lose a texture they are mid-render (which would crash
+ * the Canvas renderer with a null frame). Also purges cached rounded
+ * panel-face textures so every panel re-bakes with the current face color
+ * after a theme change.
  */
 export function createStoneTextures(scene: Phaser.Scene): void {
   const c = THEME.colors
+
+  if (builtWith && builtWith.face === c.face && builtWith.bg === c.bg && builtWith.bgVignette === c.bgVignette) {
+    return
+  }
 
   for (const key of scene.textures.getTextureKeys()) {
     if (key.startsWith(PANEL_FACE_PREFIX)) scene.textures.remove(key)
@@ -177,4 +186,6 @@ export function createStoneTextures(scene: Phaser.Scene): void {
   const bg = scene.textures.createCanvas(STONE_BG_KEY, 1024, 1024)!
   bg.context.drawImage(buildBg(1024, 1024, toRGB(c.bg), toRGB(c.bgVignette)), 0, 0)
   bg.refresh()
+
+  builtWith = { face: c.face, bg: c.bg, bgVignette: c.bgVignette }
 }

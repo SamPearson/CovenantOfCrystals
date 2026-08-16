@@ -15,6 +15,7 @@ const STARTER_CLASSES = ['knight', 'berserker', 'rogue', 'mage', 'healer'] as co
 const STARTER_GEAR = [
   'iron_sword',
   'steel_sword',
+  'super_plate_armor',
   'mage_staff',
   'leather_armor',
   'chain_mail',

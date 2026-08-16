@@ -14,6 +14,14 @@ export function scriptedSquad(): EnemyDef[] {
 }
 
 /**
+ * Resolve the characters that fight a run-node battle from the run's party
+ * snapshot. Members that died mid-run are filtered out.
+ */
+export function partyByIds(profile: PlayerProfile, partyIds: string[]): Character[] {
+  return partyIds.map((id) => profile.characters[id]).filter((c): c is Character => c !== undefined)
+}
+
+/**
  * Resolve the characters that fight in the test battle. Prefers the profile's
  * party; when the party is empty (e.g. a fresh save), falls back to the first
  * `PARTY_SIZE` characters found in the boxes as a read-only convenience so the

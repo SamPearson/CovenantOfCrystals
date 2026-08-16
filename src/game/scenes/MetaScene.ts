@@ -84,6 +84,14 @@ export class MetaScene extends Phaser.Scene {
 
     makeButton(
       this,
+      width / 2 - 235,
+      8,
+      'Start Run',
+      () => this.scene.start('RunScene'),
+      { width: 150, height: 32 },
+    )
+    makeButton(
+      this,
       width / 2 - 75,
       8,
       'Test Battle',
@@ -114,20 +122,25 @@ export class MetaScene extends Phaser.Scene {
 
     this.themeUnsubscribe = subscribeThemes(() => this.scheduleThemeApply())
 
+    // Phaser 4 never invokes a custom `shutdown()` method — stopping a scene
+    // only dispatches the SHUTDOWN event. The store `subscribeThemes`/`subscribe`
+    // listeners must be torn down there or they leak across scene starts and
+    // `updateHeader()` runs against display objects DisplayList has destroyed.
+    // (DisplayList already destroys every scene child on SHUTDOWN, so this does
+    // not touch the tab buttons or panels.)
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.onSceneShutdown, this)
+
     this.active = lastActiveTab
     this.showTab(this.active)
   }
 
-  shutdown(): void {
+  private onSceneShutdown(): void {
     this.unsubscribe?.()
     this.unsubscribe = null
     this.themeUnsubscribe?.()
     this.themeUnsubscribe = null
     this.themeTimer?.remove(false)
     this.themeTimer = null
-    for (const button of this.tabButtons) button.destroy()
-    this.tabButtons = []
-    for (const panel of Object.values(this.panels)) panel.destroy()
   }
 
   private openEquip(charId: string): void {
@@ -175,6 +188,7 @@ export class MetaScene extends Phaser.Scene {
   }
 
   private updateHeader(): void {
+    if (!this.headerGold?.active || !this.headerProfile?.active) return
     const profile = getProfile()
     this.headerGold.setText(`${profile.gold} gold`)
     this.headerProfile.setText(profile.displayName)

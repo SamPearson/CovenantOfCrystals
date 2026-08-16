@@ -23,10 +23,11 @@ import { createBattle, performAction, chooseEnemyAction, getBattleResult } from 
 import { peekNext } from '../../core/combat/timeline'
 import { createRng } from '../../core/rng/rng'
 import { getSkill, getItem } from '../../core/data'
-import { scriptedSquad, partyForBattle } from '../battle/battle-setup'
+import { scriptedSquad, partyForBattle, partyByIds } from '../battle/battle-setup'
 import { snapshotVitals, diffVitals } from '../battle/battle-vitals'
 import { statusIcon } from '../battle/status-icons'
-import type { BattleAction, BattleActor, BattleState } from '../../core/combat/types'
+import type { BattleAction, BattleActor, BattleResult, BattleState } from '../../core/combat/types'
+import type { EnemyDef } from '../../core/types'
 
 const ENEMY_DELAY = 600
 const FLOAT_LIFETIME = 900
@@ -39,6 +40,15 @@ const CARD_GAP = 14
 const ACTION_PANEL_W = 640
 const LOG_PANEL_X = 660
 const LOG_PANEL_W = 290
+
+/** Data a scene can pass when launching a run-node battle. */
+export interface RunBattleData {
+  seed?: number
+  squad?: EnemyDef[]
+  partyIds?: string[]
+  /** When set, the scene returns to this scene with a `battleResult` on completion. */
+  returnTo?: string
+}
 
 export class BattleScene extends Phaser.Scene {
   private battle!: BattleState
@@ -67,6 +77,8 @@ export class BattleScene extends Phaser.Scene {
   private partyCardsX!: number
   private partyRowY!: number
 
+  private returnTo: string | null = null
+
   constructor() {
     super('BattleScene')
   }
@@ -82,31 +94,40 @@ export class BattleScene extends Phaser.Scene {
 
     this.root = this.add.container(0, 0)
 
-    this.buildLayout()
+    // Phaser 4 keeps settings.data when a scene is restarted without a data
+    // argument, so a finished battle's handoff would otherwise leak into the
+    // next Test Battle started from the menu.
+    const data = this.scene.settings.data as RunBattleData | undefined
+    this.scene.settings.data = {}
+    this.returnTo = data?.returnTo ?? null
 
-    const party = partyForBattle(getProfile())
+    this.buildLayout(data?.returnTo ? 'Run Battle' : 'Test Battle')
+
+    const party = data?.partyIds
+      ? partyByIds(getProfile(), data.partyIds)
+      : partyForBattle(getProfile())
     if (party.length === 0) {
       this.showEmptyParty()
       return
     }
 
-    const data = this.scene.settings.data as { seed?: number } | undefined
     this.seed = typeof data?.seed === 'number' ? data.seed : Date.now()
     this.rng = createRng(this.seed)
-    this.battle = createBattle(party, scriptedSquad(), this.seed)
+    const squad = data?.squad ?? scriptedSquad()
+    this.battle = createBattle(party, squad, this.seed)
     this.seedLabel.setText(`Seed ${this.seed}`)
     this.pump()
   }
 
-  private buildLayout(): void {
+  private buildLayout(title: string): void {
     const t = THEME.colors
     const { pad } = THEME.spacing
     const headerH = THEME.header.height
 
     this.add.rectangle(0, headerH, this.scale.width, 1, t.borderLight, 0.35).setOrigin(0, 0.5)
 
-    const title = uiText(this, pad, 10, 'Test Battle', { size: 'lg', color: t.gold, family: 'display', letterSpacing: 2 }, this.root)
-    title.setOrigin(0, 0)
+    const titleText = uiText(this, pad, 10, title, { size: 'lg', color: t.gold, family: 'display', letterSpacing: 2 }, this.root)
+    titleText.setOrigin(0, 0)
 
     this.seedLabel = uiText(this, this.scale.width / 2, 16, 'Seed —', { size: 'xs', color: t.textMuted }, this.root)
     this.seedLabel.setOrigin(0.5, 0.5)
@@ -116,7 +137,7 @@ export class BattleScene extends Phaser.Scene {
       this.scale.width - pad - 120,
       8,
       'Exit',
-      () => this.scene.start('MetaScene'),
+      () => this.scene.start(this.returnTo ?? 'MetaScene'),
       { width: 120, height: 32 },
       this.root,
     )
@@ -592,7 +613,20 @@ export class BattleScene extends Phaser.Scene {
     line = uiText(this, 0, 0, `Seed ${this.seed}`, { size: 'xs', color: t.textMuted, align: 'center' }, panel)
     line.setOrigin(0.5).setPosition(panelW / 2, lineY)
 
-    makeButton(this, 60, 250, 'Retry (new seed)', () => this.scene.restart({}), { width: 155 }, panel)
-    makeButton(this, 245, 250, 'Back to Base', () => this.scene.start('MetaScene'), { width: 155 }, panel)
+    if (this.returnTo) {
+      makeButton(this, (panelW - 155) / 2, 250, 'Continue', () => this.returnResult(result), { width: 155 }, panel)
+    } else {
+      makeButton(this, 60, 250, 'Retry (new seed)', () => this.scene.restart({}), { width: 155 }, panel)
+      makeButton(this, 245, 250, 'Back to Base', () => this.scene.start('MetaScene'), { width: 155 }, panel)
+    }
+  }
+
+  /**
+   * Hands the battle result back to the owning scene (the run map) so the
+   * run layer can apply rewards, permadeath and the next checkpoint.
+   */
+  private returnResult(result: BattleResult): void {
+    if (!this.returnTo) return
+    this.scene.start(this.returnTo, { battleResult: result })
   }
 }

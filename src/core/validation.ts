@@ -149,9 +149,9 @@ function validateRunNode(v: unknown, path: string): RunNode {
 
 function validateActiveRun(v: unknown, path: string): ActiveRun {
   if (!isRecord(v)) throw new ValidationError(`${path}: expected object`)
-  for (const key of ['seed', 'profileId', 'status'] as const) {
-    if (!isString(v[key])) throw new ValidationError(`${path}.${key}: expected string`)
-  }
+  if (!isNumber(v.seed)) throw new ValidationError(`${path}.seed: expected number`)
+  if (!isString(v.profileId)) throw new ValidationError(`${path}.profileId: expected string`)
+  if (!isString(v.status)) throw new ValidationError(`${path}.status: expected string`)
   if (!Array.isArray(v.party) || !v.party.every(isString)) {
     throw new ValidationError(`${path}.party: expected string[]`)
   }

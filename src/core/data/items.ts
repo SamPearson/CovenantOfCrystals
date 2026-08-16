@@ -50,6 +50,10 @@ export const ITEMS: Record<string, ItemDef> = {
     id: 'plate_armor', name: 'Plate Armor', type: 'armor', rarity: 'epic',
     statBonus: { def: 20, hp: 25 }, value: 900,
   },
+  super_plate_armor: {
+    id: 'super_plate_armor', name: 'Super Plate Armor', type: 'armor', rarity: 'epic',
+    statBonus: { def: 200, hp: 250 }, value: 900,
+  },
   mage_robe: {
     id: 'mage_robe', name: 'Mage Robe', type: 'armor', rarity: 'common',
     statBonus: { res: 8 }, value: 95,
