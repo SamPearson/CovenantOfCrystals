@@ -78,6 +78,45 @@ describe('initStore', () => {
   })
 })
 
+describe('meta hooks (Phase 3 M7)', () => {
+  it('seeds shop rotating stock and recruit offers on first init', () => {
+    const shop = getProfile().shop
+    expect(shop.always).toContain('health_potion')
+    expect(shop.rotating.gear.length).toBeGreaterThan(0)
+    expect(shop.rotating.skills.length).toBeGreaterThan(0)
+    expect(getProfile().recruitment.length).toBeGreaterThanOrEqual(2)
+    expect(getProfile().recruitment.length).toBeLessThanOrEqual(3)
+  })
+
+  it('does not re-seed stock that is already populated', () => {
+    mutate((p) => {
+      p.shop.rotating.gear = ['iron_sword']
+    })
+    const gearBefore = [...getProfile().shop.rotating.gear]
+    resetStore()
+    initStore()
+    expect(getProfile().shop.rotating.gear).toEqual(gearBefore)
+  })
+
+  it('regenerates shop stock and recruit offers after a run completes', () => {
+    const party = seedParty(3)
+    const run = startRun(party, 3, 42)
+    const stockBefore = [...getProfile().shop.rotating.gear]
+    const offersBefore = [...getProfile().recruitment]
+
+    run.currentNodeIndex = run.nodes.length - 1
+    const result = resolveNode(battleResult('won', party))
+
+    expect(result?.status).toBe('won')
+    expect(getProfile().stats.totalRuns).toBe(1)
+    expect(getProfile().stats.wins).toBe(1)
+    expect(getProfile().shop.rotating.gear.length).toBeGreaterThan(0)
+    expect(getProfile().shop.rotating.gear).not.toEqual(stockBefore)
+    expect(getProfile().recruitment.length).toBeGreaterThanOrEqual(2)
+    expect(getProfile().recruitment).not.toEqual(offersBefore)
+  })
+})
+
 describe('mutate / subscribe', () => {
   it('persists changes and notifies subscribers', () => {
     let notified = 0

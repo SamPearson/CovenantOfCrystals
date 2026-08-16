@@ -14,6 +14,9 @@ import { generateRun } from './runs/run-gen'
 import { resolveBattleResult, resolveRestNode, tickDurability } from './runs/resolve'
 import { removeItem } from './inventory'
 import { getItem, getSkill } from './data'
+import { refreshShopStock } from './shop/shop'
+import { refreshRecruitment } from './shop/recruitment'
+import { createRng } from './rng/rng'
 
 type Listener = () => void
 
@@ -39,7 +42,26 @@ export function initStore(): SaveFile {
     seedStarterRoster(current.profile)
     writeSave(current)
   }
+  seedMetaStock()
   return current
+}
+
+/**
+ * Phase 3 M7: seeds the shop's rotating stock and the recruitment offers on
+ * first init so the meta tabs are populated before the first run. Fresh saves
+ * (M4 core) start with empty rotating stock and offers; pre-M7 saves are the
+ * same. After the first run completion `onRunEnd` regains control of both.
+ */
+function seedMetaStock(): void {
+  const profile = current.profile
+  const rotating = profile.shop.rotating
+  const stockEmpty = rotating.gear.length === 0 && rotating.skills.length === 0
+  const offersEmpty = profile.recruitment.length === 0
+  if (!stockEmpty && !offersEmpty) return
+  const rng = createRng(Date.now() + profile.stats.totalRuns + 1)
+  if (stockEmpty) refreshShopStock(profile, rng)
+  if (offersEmpty) refreshRecruitment(profile, rng)
+  writeSave(current)
 }
 
 export function getSave(): SaveFile {
@@ -137,6 +159,11 @@ function onRunEnd(stats: { won: boolean; lost: boolean }): void {
   s.totalRuns += 1
   if (stats.won) s.wins += 1
   if (stats.lost) s.losses += 1
+  // Phase 3 M7: the shop's rotating stock and the recruitment offers
+  // regenerate after every run completion (decisions S10/S6).
+  const rng = createRng(Date.now() + s.totalRuns)
+  refreshShopStock(current.profile, rng)
+  refreshRecruitment(current.profile, rng)
 }
 
 function profileStats(status: 'won' | 'lost' | 'abandoned'): { won: boolean; lost: boolean } {

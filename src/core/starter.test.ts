@@ -15,7 +15,7 @@ describe('seedStarterRoster', () => {
     const p = emptyProfile()
     seedStarterRoster(p)
     expect(Object.keys(p.characters).length).toBe(5)
-    expect(p.inventory.gear.length).toBe(5)
+    expect(p.inventory.gear.length).toBe(6)
     expect(p.inventory.items.find((i) => i.itemId === 'health_potion')?.count).toBe(3)
   })
 

@@ -8,17 +8,21 @@ import { BoxesPanel } from '../ui/panels/boxes-panel'
 import { PartyPanel } from '../ui/panels/party-panel'
 import { EquipPanel } from '../ui/panels/equip-panel'
 import { InventoryPanel } from '../ui/panels/inventory-panel'
+import { ShopPanel } from '../ui/panels/shop-panel'
+import { RecruitmentPanel } from '../ui/panels/recruitment-panel'
 import type { Panel } from '../ui/panels/panel'
 import { initStore, getProfile, subscribe } from '../../core/store'
 
-type PanelId = 'boxes' | 'party' | 'equip' | 'inventory' | 'theme'
+type PanelId = 'boxes' | 'party' | 'equip' | 'inventory' | 'shop' | 'recruit' | 'theme'
 
-const TAB_IDS: PanelId[] = ['boxes', 'party', 'equip', 'inventory', 'theme']
+const TAB_IDS: PanelId[] = ['boxes', 'party', 'equip', 'inventory', 'shop', 'recruit', 'theme']
 const TAB_LABELS: Record<PanelId, string> = {
   boxes: 'Boxes',
   party: 'Party',
   equip: 'Equip',
   inventory: 'Inventory',
+  shop: 'Shop',
+  recruit: 'Recruit',
   theme: 'Theme',
 }
 
@@ -113,6 +117,8 @@ export class MetaScene extends Phaser.Scene {
       party: new PartyPanel(this, contentRect),
       equip: new EquipPanel(this, contentRect),
       inventory: new InventoryPanel(this, contentRect),
+      shop: new ShopPanel(this, contentRect),
+      recruit: new RecruitmentPanel(this, contentRect),
     }
 
     this.unsubscribe = subscribe(() => {
