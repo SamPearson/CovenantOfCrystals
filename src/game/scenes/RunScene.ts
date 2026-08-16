@@ -11,7 +11,9 @@
  *
  * Battle nodes hand off to `BattleScene` with the node's squad + the run's
  * party snapshot; on completion BattleScene returns a `BattleResult`, which
- * `resolveNode` applies (rewards, permadeath, node advance / run end).
+ * `resolveNode` applies (rewards, permadeath, node advance / run end). When
+ * the run ends it hands the `RunResult` to `ResultScene`, which owns the
+ * outcome summary (gold / drops / XP) and return-to-base flow.
  *
  * Layout (960×540): header band, a run-map strip of node icons, the current
  * node card (with the S9 visible next-node choices), and a party / item panel.
@@ -104,7 +106,7 @@ export class RunScene extends Phaser.Scene {
     if (data?.battleResult) {
       const result = resolveNode(data.battleResult)
       if (result) {
-        this.buildEndScreen(result)
+        this.scene.start('ResultScene', { result })
         return
       }
     }
@@ -181,7 +183,7 @@ export class RunScene extends Phaser.Scene {
 
     const node = run.nodes[run.currentNodeIndex]
     if (!node) {
-      this.buildEndScreen(this.fallbackResult(run))
+      this.scene.start('ResultScene', { result: this.fallbackResult(run) })
       return
     }
 
@@ -385,50 +387,8 @@ export class RunScene extends Phaser.Scene {
   }
 
   // -------------------------------------------------------------------------
-  // Run-end transition (ResultScene lands in M9)
+  // Run-end handoff (ResultScene owns the outcome summary)
   // -------------------------------------------------------------------------
-
-  private buildEndScreen(result: RunResult): void {
-    this.content.removeAll(true)
-    this.buttons = []
-    this.headerGold.setText('')
-
-    makePanel(this, NODE_PANEL_X, CONTENT_TOP, NODE_PANEL_W, CONTENT_H, {}, this.content)
-    const cx = NODE_PANEL_X + 20
-
-    const title =
-      result.status === 'won' ? 'Victory!' : result.status === 'lost' ? 'Defeat' : 'Run Abandoned'
-    uiText(this, cx, CONTENT_TOP + 16, title, {
-      size: 'xl',
-      color: result.status === 'won' ? THEME.colors.good : THEME.colors.bad,
-      family: 'display',
-    }, this.content)
-
-    const lines = [
-      `Survivors: ${result.survivors.length}`,
-      `Gold banked: ${result.goldBanked}`,
-      `Items banked: ${result.itemsBanked.length}`,
-      `Gear banked: ${result.gearBanked.length}`,
-    ]
-    let y = CONTENT_TOP + 72
-    for (const line of lines) {
-      uiText(this, cx, y, line, { size: 'sm', color: THEME.colors.text }, this.content)
-      y += 22
-    }
-
-    const xp = Object.values(result.xpGained)
-    if (xp.length > 0) {
-      uiText(this, cx, y + 4, `Party XP gained: ${xp.reduce((a, b) => a + b, 0)}`, {
-        size: 'sm',
-        color: THEME.colors.gold,
-      }, this.content)
-    }
-
-    this.addButton(cx, CONTENT_TOP + CONTENT_H - 46, 'Return to Base', () => this.scene.start('MetaScene'), {
-      width: 200,
-      height: 40,
-    })
-  }
 
   private fallbackResult(run: ActiveRun): RunResult {
     return {
