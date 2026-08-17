@@ -69,14 +69,43 @@ Phase 2 milestone 5 is built:
   `game/battle/battle-vitals.ts` + `status-icons.ts` and are unit-tested.
   Full suite 273/273 passing, `tsc --noEmit` clean.
 
-Phase 2 (milestones 1–5) is complete. Phase 3 (runs & metagame) is next.
+Phase 2 (milestones 1–5) is complete.
 
-Phase 3 has a thorough plan:
-`workspace/phase-3-run-loop-plan.md`, with scope settled (milestones M1–M9)
-and the design decisions logged in `roadmap.md` (round 5). High-level shape:
-seeded branching runs (3/5/10), battle rewards (gold/XP/drops), items wired
-in-battle + on the run map, a meta shop tab (potions + rotating gear/skill
-items, sell gear) and a recruitment tab (2–3 random level-1 recruits) that
-refresh per run, permadeath + durability resolution, and a result screen.
-Leveling is deferred to Phase 4 (XP accumulates, no level-ups).
+Phase 3 (runs & metagame) is complete. Milestones M1–M9 from
+`workspace/phase-3-run-loop-plan.md` are all built:
+- **M1 — Data model & types**: `'scroll'` ItemType + `ItemDef.castSkill`,
+  `EnemyDef.xp`/`gold`, `ActiveRun`, `RunNode`, `RunResult`, `ShopStock`,
+  `RecruitOffer`, `PlayerProfile.shop`/`recruitment`, `SaveFile.activeRun`,
+  mana potions, `skill-items.ts` (Scroll/Tome of every player-facing skill).
+- **M2 — Run generation**: `core/runs/run-gen.ts` + `enemy-scale.ts` — seeded
+  branching node lists for lengths 3/5/10, rest every 5, boss final,
+  difficulty-by-numbers enemy scaling.
+- **M3 — Rewards & resolution**: `core/runs/rewards.ts` + `resolve.ts` —
+  seeded gold/drop rolls, XP per survivor (no leveling), permadeath (KO'd
+  removed, gear → inventory), full-wipe run end, rest-node recover, drop
+  banking at run resolution (partial on failure/abandon).
+- **M4 — Shop & recruitment**: `core/shop/shop.ts` + `recruitment.ts` —
+  always potions + 4 gear + 3 skill rotating stock, sell pricing, 2–3
+  level-1 permanent recruits at a flat price; refresh on run completion.
+- **M5 — Battle items & scrolls**: `resolveItem` handles `castSkill` (no
+  MP/cost/cooldown, 1 use) + BattleScene Item action (potions, scrolls).
+- **M6 — RunScene**: branching run map, node navigation, on-map item usage,
+  rest heal, battle handoff, boss node, reacted-to run-end transition,
+  post-battle/at-rest checkpoints.
+- **M7 — Shop & recruitment tabs**: `shop-panel.ts` + `recruitment-panel.ts`
+  wired into the meta view.
+- **M8 — Store actions & persistence**: `startRun`/`resolveNode`/`resolveRest`/
+  `abandonRun`/`useItemOutOfBattle` and shop/recruitment refresh on run
+  resolution; buy/sell/recruit helpers live in `core/shop/*`; `activeRun` +
+  shop/recruitment persisted via `save.service.ts`. Schema version stayed 1 —
+  no migration was needed (prototyping; waived).
+- **M9 — ResultScene**: standalone `scenes/ResultScene.ts` — victory /
+  wipe / abandon outcomes, gold-drops-XP summary, payout already banked to
+  meta server-side, return to base / re-run on the main view. `RunScene`
+  hands off with `scene.start('ResultScene', { result })`.
+
+The full loop **recruit → gear → run → reward** is visible and repeatable.
+Leveling is deferred to Phase 4 (XP accumulates no level-ups). Phase 4
+(autobattle & idle) is next. Full suite passes (`npm run test`, 373 tests)
+and `tsc --noEmit` is clean.
 

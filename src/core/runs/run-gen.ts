@@ -31,6 +31,11 @@ const ELITE_POOL = ['shadow_assassin', 'earth_golem', 'holy_guardian'] as const
 
 const BOSS_ID = 'goblin_king'
 
+/** Boss multiplier for a run length, or the flat `bossMult` when unset. */
+export function bossMultFor(length: number): number {
+  return BALANCE.run.bossMultByLength?.[length] ?? BALANCE.run.bossMult
+}
+
 const CHOICE_LABEL: Record<RunNodeType, string> = {
   battle: 'Battle',
   elite: 'Elite Fight',
@@ -103,7 +108,7 @@ function restNode(): RunNode {
 
 function buildSquad(rng: Rng, type: RunNodeType, nodeIndex: number, length: number): EnemyDef[] {
   if (type === 'boss') {
-    return [scaleEnemy(getEnemy(BOSS_ID), nodeIndex, length, BALANCE.run.bossMult)]
+    return [scaleEnemy(getEnemy(BOSS_ID), nodeIndex, length, bossMultFor(length))]
   }
   const pool = type === 'elite' ? ELITE_POOL : STANDARD_POOL
   const minCount = type === 'elite' ? 3 : 2

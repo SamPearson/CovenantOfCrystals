@@ -20,8 +20,9 @@ import { truncate } from '../ui/format'
 import { initStore, getProfile, mutate } from '../../core/store'
 import { removeItem } from '../../core/inventory'
 import { createBattle, performAction, chooseEnemyAction, getBattleResult } from '../../core/combat/battle'
-import { peekNext } from '../../core/combat/timeline'
+import { peekNext, timeToNextTurn, compareEntries } from '../../core/combat/timeline'
 import { createRng } from '../../core/rng/rng'
+import { BALANCE } from '../../core/data/balance'
 import { getSkill, getItem } from '../../core/data'
 import { scriptedSquad, partyForBattle, partyByIds } from '../battle/battle-setup'
 import { snapshotVitals, diffVitals } from '../battle/battle-vitals'
@@ -61,8 +62,15 @@ export class BattleScene extends Phaser.Scene {
   private cardCenters = new Map<string, { x: number; y: number }>()
   private actionButtons: Button[] = []
   private itemMode = false
-  private pendingItem: { itemId: string; targetSide: 'ally' | 'enemy' } | null = null
+  /** Target-picking state for attack / skill / item actions that need a manual target. */
+  private pendingTarget: {
+    targetSide: 'ally' | 'enemy'
+    prompt: string
+    commit: (targetId: string) => void
+  } | null = null
   private queueChips: Phaser.GameObjects.Container[] = []
+  private queueFade: Phaser.GameObjects.Graphics | null = null
+  private queueStripW = 0
   private enemyCards: Phaser.GameObjects.Container[] = []
   private partyCards: Phaser.GameObjects.Container[] = []
 
@@ -144,6 +152,7 @@ export class BattleScene extends Phaser.Scene {
 
     const queuePanel = makePanel(this, pad, headerH + 4, this.scale.width - pad * 2, 34, {}, this.root)
     this.queueStrip = queuePanel
+    this.queueStripW = this.scale.width - pad * 2
 
     this.enemyRowY = headerH + 44
     this.enemyCardsX = this.cardRowX(3, CARD_ENEMY_W)
@@ -294,9 +303,9 @@ export class BattleScene extends Phaser.Scene {
 
     this.cardCenters.set(actor.id, { x: x + w / 2, y: y + CARD_H / 2 })
 
-    if (this.pendingItem) {
+    if (this.pendingTarget) {
       const sideOk =
-        this.pendingItem.targetSide === 'ally' ? actor.side === 'player' : actor.side === 'enemy'
+        this.pendingTarget.targetSide === 'ally' ? actor.side === 'player' : actor.side === 'enemy'
       if (sideOk && !actor.ko) {
         card.setSize(w, CARD_H)
         card.setInteractive({ useHandCursor: true })
@@ -318,23 +327,30 @@ export class BattleScene extends Phaser.Scene {
     const maxHp = actor.stats.hp
     const pct = maxHp > 0 ? Phaser.Math.Clamp(actor.hp / maxHp, 0, 1) : 0
     const color = pct > 0.5 ? THEME.colors.good : pct > 0.25 ? THEME.colors.warn : THEME.colors.bad
-    makeSubpanel(this, card, 8, 34, w - 16, 8)
+    const barY = 34
+    const barH = 8
+    makeSubpanel(this, card, 8, barY, w - 16, barH)
     const fillW = Math.max(0, Math.round((w - 16) * pct))
-    const fill = this.add.rectangle(8, 34, fillW, 8, hexColor(color)).setOrigin(0, 0)
+    const fill = this.add.rectangle(8, barY, fillW, barH, hexColor(color)).setOrigin(0, 0)
     card.add(fill)
-    const label = uiText(this, w - 8, 44, `${actor.hp}/${maxHp}`, { size: 'xs', color: THEME.colors.text }, card)
-    label.setOrigin(1, 0)
+    const label = uiText(this, w / 2, barY + barH / 2, `${actor.hp}/${maxHp}`, { size: 'xs', color: '#ffffff' }, card)
+    label.setOrigin(0.5).setStroke('#000000', 2)
   }
 
   private buildMpBar(actor: BattleActor, w: number, card: Phaser.GameObjects.Container): void {
     const maxMp = actor.maxMp!
     const pct = maxMp > 0 ? Phaser.Math.Clamp(actor.mp / maxMp, 0, 1) : 0
-    makeSubpanel(this, card, 8, 46, w - 16, 6)
+    const barY = 48
+    const barH = 6
+    makeSubpanel(this, card, 8, barY, w - 16, barH)
     const fillW = Math.max(0, Math.round((w - 16) * pct))
-    const fill = this.add.rectangle(8, 46, fillW, 6, THEME.colors.accentBlue).setOrigin(0, 0)
+    const fill = this.add.rectangle(8, barY, fillW, barH, THEME.colors.accentBlue).setOrigin(0, 0)
     card.add(fill)
-    const label = uiText(this, w - 8, 52, `${actor.mp}/${maxMp}`, { size: 'xs', color: THEME.colors.textMuted }, card)
-    label.setOrigin(1, 0)
+    const label = uiText(this, w / 2, barY + barH / 2, `${actor.mp}/${maxMp}`, {
+      size: 'xs',
+      color: THEME.colors.textOnAccent,
+    }, card)
+    label.setOrigin(0.5).setStroke('#000000', 2)
   }
 
   private buildStatusIcons(actor: BattleActor, card: Phaser.GameObjects.Container): void {
@@ -347,7 +363,7 @@ export class BattleScene extends Phaser.Scene {
     const icons = actor.statuses.slice(0, 5).map(statusIcon)
     let px = 8
     for (const icon of icons) {
-      const badge = makeBadge(this, px, 58, icon.label, tones[icon.tone] ?? THEME.colors.textMuted, { height: 18 }, card)
+      const badge = makeBadge(this, px, 60, icon.label, tones[icon.tone] ?? THEME.colors.textMuted, { height: 18 }, card)
       px += badge.width + 4
     }
   }
@@ -361,14 +377,14 @@ export class BattleScene extends Phaser.Scene {
     const actor = this.currentActorId ? this.battle.actors[this.currentActorId] : undefined
     if (!actor || this.busy) {
       this.itemMode = false
-      this.pendingItem = null
+      this.pendingTarget = null
       this.actionPrompt.setText(this.busy ? 'Enemy acting…' : '')
       return
     }
 
     if (actor.side !== 'player') {
       this.itemMode = false
-      this.pendingItem = null
+      this.pendingTarget = null
       return
     }
 
@@ -388,11 +404,10 @@ export class BattleScene extends Phaser.Scene {
       bx += btnW + 8
     }
 
-    if (this.pendingItem) {
-      const item = getItem(this.pendingItem.itemId)
-      this.actionPrompt.setText(`Choose a target for ${item.name}.`)
+    if (this.pendingTarget) {
+      this.actionPrompt.setText(this.pendingTarget.prompt)
       addButton('Cancel', () => {
-        this.pendingItem = null
+        this.pendingTarget = null
         this.render()
       })
       return
@@ -433,15 +448,37 @@ export class BattleScene extends Phaser.Scene {
     }
 
     for (const a of actions) {
+      const skillId = a.skillId
       addButton(
         truncate(a.label, 14),
         () => {
           if (a.kind === 'item') {
             this.itemMode = true
             this.render()
-          } else {
-            this.dispatch({ kind: a.kind, skillId: a.skillId })
+            return
           }
+          if (a.kind === 'attack') {
+            this.beginTargeting('enemy', 'Choose an enemy to attack.', (targetId) =>
+              this.dispatch({ kind: 'attack', targetId }),
+            )
+            return
+          }
+          if (a.kind === 'skill' && skillId) {
+            const skill = getSkill(skillId)
+            if (skill.targets === 'single') {
+              const allyFacing =
+                skill.kind === 'heal' || skill.kind === 'utility' || skill.kind === 'buff'
+              this.beginTargeting(
+                allyFacing ? 'ally' : 'enemy',
+                `Choose a target for ${skill.name}.`,
+                (targetId) => this.dispatch({ kind: 'skill', skillId, targetId }),
+              )
+            } else {
+              this.dispatch({ kind: 'skill', skillId })
+            }
+            return
+          }
+          this.dispatch({ kind: a.kind })
         },
         a.enabled,
       )
@@ -461,33 +498,86 @@ export class BattleScene extends Phaser.Scene {
         ? 'enemy'
         : 'ally'
       : 'ally'
-    this.pendingItem = { itemId, targetSide }
+    this.beginTargeting(targetSide, `Choose a target for ${item.name}.`, (targetId) =>
+      this.dispatchItem(itemId, targetId),
+    )
+  }
+
+  /** Opens manual target-picking for the current actor's pending action. */
+  private beginTargeting(
+    targetSide: 'ally' | 'enemy',
+    prompt: string,
+    commit: (targetId: string) => void,
+  ): void {
+    this.pendingTarget = { targetSide, prompt, commit }
     this.render()
   }
 
   private onPickTarget(targetId: string): void {
-    const item = this.pendingItem
-    if (!item) return
-    this.dispatchItem(item.itemId, targetId)
+    const pending = this.pendingTarget
+    if (!pending) return
+    this.pendingTarget = null
+    pending.commit(targetId)
   }
 
   private dispatchItem(itemId: string, targetId?: string): void {
-    this.pendingItem = null
     this.itemMode = false
     this.dispatch({ kind: 'item', itemId, targetId })
   }
 
   // ---------------------------------------------------------------- queue
 
+  /**
+   * Project turn order several actions into the future. The CTB queue holds
+   * only one slot per actor, so past the current rotation we estimate each
+   * actor's cadence from SPD using the default attack delay, tie-breaking the
+   * same way the engine does. Called for the queue strip so it can show more
+   * than a single turnaround.
+   */
+  private projectQueue(max: number): { actorId: string; side: 'player' | 'enemy' }[] {
+    const actors = this.battle.actors
+    const work = this.battle.queue.map((e) => ({ actorId: e.actorId, nextAt: e.nextAt }))
+    const out: { actorId: string; side: 'player' | 'enemy' }[] = []
+    while (out.length < max && work.length > 0) {
+      let best = 0
+      for (let i = 1; i < work.length; i++) {
+        const cur = work[best]
+        const cand = work[i]
+        const curSide = actors[cur.actorId]?.side ?? 'enemy'
+        const candSide = actors[cand.actorId]?.side ?? 'enemy'
+        if (
+          compareEntries(
+            { actorId: cur.actorId, side: curSide, nextAt: cur.nextAt },
+            { actorId: cand.actorId, side: candSide, nextAt: cand.nextAt },
+          ) > 0
+        ) {
+          best = i
+        }
+      }
+      const bestEntry = work[best]
+      const side = actors[bestEntry.actorId]?.side ?? 'enemy'
+      out.push({ actorId: bestEntry.actorId, side })
+      const spd = this.battle.actors[bestEntry.actorId]?.stats.spd ?? BALANCE.spdRef
+      work[best].nextAt = bestEntry.nextAt + timeToNextTurn(spd, BALANCE.actionDelays.attack)
+    }
+    return out
+  }
+
   private renderQueue(): void {
     this.queueChips.forEach((c) => c.destroy(true))
     this.queueChips = []
+    this.queueFade?.destroy()
+    this.queueFade = null
 
     const t = THEME.colors
-    const entries = this.battle.queue.slice(0, 9)
-    let px = THEME.spacing.pad + 4
+    const FADE_W = 64
+    const GAP = 5
+    const stripW = this.queueStripW
 
-    for (const entry of entries) {
+    const built: { chip: Phaser.GameObjects.Container; chipW: number }[] = []
+    const projected = this.projectQueue(40)
+    for (const entry of projected) {
+      if (built.length >= 40) break
       const isFront = entry.actorId === this.currentActorId
       const chip = this.add.container(0, 0)
 
@@ -507,12 +597,26 @@ export class BattleScene extends Phaser.Scene {
         .setStrokeStyle(1, isFront ? t.gold : t.border, 0.6)
         .setRounded(5)
       chip.addAt(chipBg, 0)
-
-      chip.setPosition(px, 4)
       chip.setSize(chipW, 26)
-      this.queueStrip.add(chip)
-      this.queueChips.push(chip)
-      px += chipW + 5
+      built.push({ chip, chipW })
+    }
+
+    // Pack turns snugly at the standard spacing, showing as many projected turns
+    // as the full width allows; fade the tail when there are more turns than space.
+    let px = 4
+    for (const b of built) {
+      if (px + b.chipW > stripW - 4) break
+      b.chip.setPosition(px, 4)
+      this.queueStrip.add(b.chip)
+      this.queueChips.push(b.chip)
+      px += b.chipW + GAP
+    }
+    if (this.queueChips.length < projected.length) {
+      const fade = this.add.graphics()
+      fade.fillGradientStyle(0x000000, 0x000000, 0x000000, 0x000000, 0, 0.9, 0, 0.9)
+      fade.fillRect(stripW - FADE_W, 0, FADE_W, 26)
+      this.queueStrip.add(fade)
+      this.queueFade = fade
     }
   }
 

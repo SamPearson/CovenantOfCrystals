@@ -13,6 +13,13 @@ export interface RunBalanceConfig {
   eliteMult: number
   /** Boss node scaling multiplier. */
   bossMult: number
+  /**
+   * Length-aware boss multiplier overrides, keyed by run length. Shorter runs
+   * can't survive the full exponential — a 3-battle run needs a level 7–10
+   * boss, not the level ~17 the flat `bossMult` produces. Lengths without an
+   * entry fall back to `bossMult`.
+   */
+  bossMultByLength?: Record<number, number>
   /** A rest node appears at every Nth step (0 = never). */
   restCadence: number
   /** Base gold per battle, before variance. */
@@ -93,6 +100,9 @@ export const BALANCE: BalanceConfig = {
     difficultyStep: 1.12,
     eliteMult: 1.6,
     bossMult: 2.2,
+    // A 3-battle run starts fresh with no leveling, so its boss must sit in
+    // the level 7–10 band instead of the level ~17 the flat bossMult yields.
+    bossMultByLength: { 3: 1.2 },
     restCadence: 5,
     baseGold: 20,
     goldVariance: [0.8, 1.2],

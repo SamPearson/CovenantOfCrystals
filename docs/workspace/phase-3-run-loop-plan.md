@@ -24,14 +24,22 @@ rewards through gold, drops, and shopping rather than level-up curves.
 
 ## 2. Status
 
-- **Not started.** Phase 2 (CTB engine + scripted BattleScene) is complete:
-  full suite 273/273, `tsc --noEmit` clean. The engine already emits the
-  `BattleResult` contract (`battle.ts`), `resolveItem` handles `use.healHp` /
-  `use.healMp`, and `EnemyDef`/`createBattle` are ready to be scaled by a run
-  generator. No run, shop, recruitment, or reward code exists yet.
-- Run-generator seams identified: `core/runs/` (new), `core/shop/` (new),
-  `startRun` store action (planned in Phase 1 roadmap, not yet landed),
-  `SaveFile.activeRun` (sketched in `data-model.md`, not yet in `types.ts`).
+- **Complete.** All milestones M1–M9 have landed (commits M1–M7, with M8/M9
+  verified and wrapped up on top: the standalone `ResultScene` now owns the
+  run-end outcome summary). Full suite 373/373, `tsc --noEmit` clean.
+- Two refinements vs. the plan as written:
+  - **M8** — `buyItem` / `sellItem` / `recruit` are implemented in
+    `core/shop/*` as guard helpers and called from the panels via the store's
+    `mutate`, rather than as `store.ts` action wrappers. The schema bump +
+    migration were **skipped** (still prototyping; saves are disposable).
+  - **M9** — run-end payout to meta was pulled forward into M3/M6 (banked at
+    resolution); what was missing was the standalone `ResultScene`, which is
+    now in `src/game/scenes/ResultScene.ts`. `RunScene` hands off with
+    `scene.start('ResultScene', { result })` — victory / wipe / abandon
+    outcomes, gold/drops/XP summary, return to main view.
+- The run-generator seams identified below are all now implemented:
+  `core/runs/` and `core/shop/` exist; `startRun` and `SaveFile.activeRun`
+  are live.
 
 ## 3. Design decisions (this planning session)
 
@@ -281,63 +289,69 @@ Notes:
 - Exit: `tsc --noEmit` clean; data-integrity tests (all player skills produce
   a scroll + tome; enemy-only skills excluded; item refs resolve).
 
-### M2 — Run generation
+### M2 — Run generation ✅
 - `core/runs/run-gen.ts` + `enemy-scale.ts` + tests. Seeded node lists for
   lengths 3/5/10; branching choices per step; boss final; rest every 5
   non-boss battles; enemy stats/xp/gold scaled by node index (numbers-based
   difficulty, locked #18).
 - Exit: same seed → identical run; length/nodes invariants; scaling monotonic
-  across a run; rest cadence correct (3: none, 5: pre-boss, 10: after #5).
+  across a run; rest cadence correct (3: none, 5: pre-boss, 10: after #5). ✅
 
-### M3 — Rewards, permadeath & run resolution
+### M3 — Rewards, permadeath & run resolution ✅
 - `core/runs/rewards.ts` + `resolve.ts` + tests. Gold/drop rolls (seeded),
   xp per survivor (no leveling), permadeath (KO'd removed, gear → inventory),
   full-wipe run end, rest-node HP/MP restore, durability tick (no-op),
   drop banking at run resolution (full on victory, partial on failure/abandon).
 - Exit: permadeath resolution matches `combat.md` §6; gear returns on death;
-  banked rewards land correctly in all three end states.
+  banked rewards land correctly in all three end states. ✅
 
-### M4 — Shop, skill items & recruitment
+### M4 — Shop, skill items & recruitment ✅
 - `core/shop/shop.ts` + `recruitment.ts` + tests. Always potions + 4 gear +
   3 skill items per refresh; scroll/tome prices from stub curve; sell pricing;
   2–3 level-1 permanent recruits at flat price; refresh on run completion.
 - Exit: seeded stock reproducible; buys/sells/recruits update gold correctly;
-  selling a permanent gear piece returns it to gold (consumables un-sellable).
+  selling a permanent gear piece returns it to gold (consumables un-sellable). ✅
 
-### M5 — Battle item & scroll wiring
+### M5 — Battle item & scroll wiring ✅
 - `battle.ts` `resolveItem` handles `castSkill` (no MP/cost/cooldown, 1 use);
   `BattleScene` adds an Item action (potion target pick; scroll cast).
 - Exit: potion heals HP/MP mid-battle; scroll casts its skill (scaling,
   element, statuses, AoE targets all correct); consumed uses decrement;
-  battle log records item usage.
+  battle log records item usage. ✅
 
-### M6 — RunScene (run loop shell)
+### M6 — RunScene (run loop shell) ✅
 - `RunScene`: run map with branching choices, node navigation, between-battle
   item usage (potions, tomes on the map), rest node heal/MP restore, battle
-  handoff to `BattleScene`, boss node, run-end transition. Checkpoints saved
-  post-battle and at rest (`autobattle-and-idle.md` §4).
+  handoff to `BattleScene`, boss node, run-end transition (`scene.start(
+  'ResultScene', { result })`). Checkpoints saved post-battle and at rest
+  (`autobattle-and-idle.md` §4).
 - Exit: a full run is playable start-to-finish manually; progress survives
-  reload at checkpoints.
+  reload at checkpoints. ✅
 
-### M7 — Shop & recruitment tabs (meta UI)
+### M7 — Shop & recruitment tabs (meta UI) ✅
 - `shop-panel.ts` + `recruitment-panel.ts` + main-view entry tabs. Buy/sell
   gear, buy potions, buy skill items, recruit characters into a box; gold
   balances and durability badges shown.
 - Exit: end-to-end — earn gold in a run, spend it in the shop, recruit
-  replacements for the fallen.
+  replacements for the fallen. ✅
 
-### M8 — Store actions & persistence
+### M8 — Store actions & persistence ✅ (with scope cuts)
 - `store.ts` actions (`startRun`, `resolveNode`, `buyItem`, `sellItem`,
   `recruit`, `useItemOutOfBattle`) + shop/recruitment refresh on run
-  resolution; `save.service.ts` persists `activeRun` + `shop`/`recruitment`;
-  schema bump + migration.
+  resolution; `save.service.ts` persists `activeRun` + `shop`/`recruitment`.
+- **Deviation:** `buyItem` / `sellItem` / `recruit` live in `core/shop/*` as
+  guard helpers invoked through the store's `mutate` from the panels, rather
+  than as `store.ts` action wrappers. Schema version stayed **1** — the bump +
+  migration were skipped (prototyping, disposable saves, waived).
 - Exit: save/load round-trips preserve run state, shop stock, recruitment
-  offers, and gold; reload mid-run resumes at the checkpoint.
+  offers, and gold; reload mid-run resumes at the checkpoint. ✅
 
-### M9 — ResultScene & run-end payout
-- `ResultScene`: victory / wipe / abandon outcomes; gold, drops, XP summary;
-  payout to meta; return to the main view (boxes/party → recruit → re-run).
-- Exit: the full loop recruit → gear → run → reward is visible and repeatable.
+### M9 — ResultScene & run-end payout ✅
+- `ResultScene` (now `src/game/scenes/ResultScene.ts`): victory / wipe /
+  abandon outcomes; gold, drops, XP summary; payout to meta (already banked
+  server-side at resolution — folded into M3/M6); return to the main view
+  (boxes/party → recruit → re-run).
+- Exit: the full loop recruit → gear → run → reward is visible and repeatable. ✅
 
 ### Exit criteria (from roadmap.md)
 - A full run can be played start-to-finish and meta progression is visible.

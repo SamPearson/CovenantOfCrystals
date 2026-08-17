@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { BALANCE, ENEMIES, getEnemy } from '../data'
 import type { ActiveRun, EnemyDef, RunNode, RunNodeType } from '../types'
-import { generateRun, RUN_LENGTHS } from './run-gen'
+import { generateRun, bossMultFor, RUN_LENGTHS } from './run-gen'
 import { scaleEnemy } from './enemy-scale'
 
 const ALLOWED_TYPES: RunNodeType[] = ['battle', 'elite', 'rest', 'boss']
@@ -19,8 +19,8 @@ function battleNodes(nodes: RunNode[]): { node: RunNode; battleIndex: number }[]
   return out
 }
 
-function multFor(type: RunNodeType): number {
-  if (type === 'boss') return BALANCE.run.bossMult
+function multFor(type: RunNodeType, length: number): number {
+  if (type === 'boss') return bossMultFor(length)
   if (type === 'elite') return BALANCE.run.eliteMult
   return 1
 }
@@ -139,7 +139,7 @@ describe('generateRun', () => {
       const run = generateRun(PROFILE, PARTY, length, 5)
       const battles = battleNodes(run.nodes)
       for (const { node, battleIndex } of battles) {
-        const mult = multFor(node.type)
+        const mult = multFor(node.type, length)
         for (const member of node.enemySquad!) {
           const base = ENEMIES[member.id]
           expect(base, `length ${length} enemy ${member.id}`).toBeDefined()
@@ -182,5 +182,16 @@ describe('generateRun', () => {
     expect(bossNode.type).toBe('boss')
     expect(bossNode.enemySquad!.length).toBe(1)
     expect(bossNode.enemySquad![0]!.id).toBe(getEnemy('goblin_king').id)
+  })
+
+  it('keeps the 3-battle-run boss in the level 7–10 band', () => {
+    for (const seed of [1, 5, 42, 99, 1234]) {
+      const run = generateRun(PROFILE, PARTY, 3, seed)
+      const boss = run.nodes[run.nodes.length - 1]!
+      expect(boss.type).toBe('boss')
+      const enemy = boss.enemySquad![0]!
+      expect(enemy.level).toBeGreaterThanOrEqual(7)
+      expect(enemy.level).toBeLessThanOrEqual(10)
+    }
   })
 })

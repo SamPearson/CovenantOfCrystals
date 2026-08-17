@@ -51,27 +51,31 @@ working document — update it as decisions land.
   strip, HP/MP bars, status badges, damage floats, battle log, win/loss panel.
   Docs: `combat.md` (full CTB spec).
 
-### Phase 3 — Run loop
-- [ ] Seeded run generation (lengths 3/5/10 this phase — 1/15/20 later with
+### Phase 3 — Run loop ✓ (done)
+- [x] Seeded run generation (lengths 3/5/10 this phase — 1/15/20 later with
   difficulty bands; branching paths; difficulty-by-numbers curve)
-- [ ] Rest nodes every 5 battles (recovery — exact features to tune in Phase 5)
-- [ ] Battle → rewards → next node → boss → run end
-- [ ] Permadeath resolution (immediate, no revives) + survivor XP/gear payout
-- [ ] Durability tick-down at run resolution
-- [ ] Result screen + rewards to meta (gold, drops, unlocks)
-- [ ] Items wired in-battle (potions, scrolls) + usable on the run map between
+- [x] Rest nodes every 5 battles (recovery — exact features to tune in Phase 5)
+- [x] Battle → rewards → next node → boss → run end
+- [x] Permadeath resolution (immediate, no revives) + survivor XP/gear payout
+- [x] Durability tick-down at run resolution
+- [x] Result screen + rewards to meta (gold, drops, unlocks)
+- [x] Items wired in-battle (potions, scrolls) + usable on the run map between
   battles
-- [ ] Meta shop tab (always potions + rotating 4 gear / 3 skill items, refresh
+- [x] Meta shop tab (always potions + rotating 4 gear / 3 skill items, refresh
   per run) + sell gear for gold
-- [ ] Recruitment tab (2–3 random level-1 permanent recruits, flat price,
+- [x] Recruitment tab (2–3 random level-1 permanent recruits, flat price,
   refresh per run)
-- [ ] Auto-generated skill items: Scroll of X / Tome of X for every
+- [x] Auto-generated skill items: Scroll of X / Tome of X for every
   player-facing skill
 - **Plan:** `workspace/phase-3-run-loop-plan.md` (milestones M1–M9)
-- **Exit criteria:** a full run can be played start-to-finish and meta
+- **Status note:** M8's schema bump/migration was skipped (prototyping, waived),
+  and buy/sell/recruit guards live in `core/shop/*` called from the panels
+  rather than store wrappers. M9's payout-to-meta was folded into the earlier
+  milestones; the standalone `ResultScene` (the missing piece) landed last.
+- **Exit criteria:** met — a full run can be played start-to-finish and meta
   progression is visible; gold/drops are earned, spendable (shop) and have a
   sink (shop + recruitment); permadeath losses recoverable via recruitment.
-  Docs: `runs-and-gauntlet.md`.
+  Docs: `runs-and-gauntlet.md`. Full suite 373/373 green.
 
 ### Phase 4 — Autobattle & idle
 - [ ] Per-character AI scripts (presets) using the same engine
