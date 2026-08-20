@@ -10,7 +10,8 @@ function actor(
   maxHp: number,
   overrides: Partial<AiActorState> = {},
 ): AiActorState {
-  return { id, hp, maxHp, statuses: [], skills: ['tackle'], ...overrides }
+  const { mp = 0, maxMp = 0, statuses = [], skills = ['tackle'], ...rest } = overrides
+  return { id, hp, maxHp, mp, maxMp, statuses, skills, ...rest }
 }
 
 function battle(
@@ -346,5 +347,175 @@ describe('profile sanity (data)', () => {
     const again = chooseAction(AI_SCRIPTS.boss, field, createRng(11))
     expect(first).toEqual(again)
     expect(first.targetId).toBeDefined()
+  })
+})
+
+describe('mp-pct condition', () => {
+  const script: AiScript = [
+    { condition: { kind: 'mp-pct', op: '>', value: 0.2 }, action: { kind: 'defend' } },
+    { condition: { kind: 'always' }, action: { kind: 'attack', target: { kind: 'lowest-hp-enemy' } } },
+  ]
+
+  it('compares the actor MP fraction against the threshold', () => {
+    const field = battle(actor('self', 100, 100, { mp: 25, maxMp: 100 }), [], [actor('e', 50, 100)])
+    expect(chooseAction(script, field)).toEqual({ kind: 'defend' })
+  })
+
+  it('is false when MP sits below the threshold', () => {
+    const field = battle(actor('self', 100, 100, { mp: 1, maxMp: 100 }), [], [actor('e', 50, 100)])
+    expect(chooseAction(script, field)).toEqual({ kind: 'attack', targetId: 'e' })
+  })
+
+  it('reads 0 when no maxMp is set', () => {
+    const field = battle(actor('self', 100, 100), [], [actor('e', 50, 100)])
+    const emptyScript: AiScript = [
+      { condition: { kind: 'mp-pct', op: '<', value: 0.5 }, action: { kind: 'defend' } },
+      { condition: { kind: 'always' }, action: { kind: 'attack', target: { kind: 'lowest-hp-enemy' } } },
+    ]
+    expect(chooseAction(emptyScript, field)).toEqual({ kind: 'defend' })
+  })
+
+  it('rejects values outside [0, 1]', () => {
+    const field = battle(actor('self', 100, 100), [], [actor('e', 50, 100)])
+    expect(() => chooseAction([{ condition: { kind: 'mp-pct', op: '<', value: 1.5 }, action: { kind: 'defend' } }], field)).toThrow(/fraction in \[0, 1\]/)
+  })
+})
+
+describe('can-cast condition', () => {
+  const script: AiScript = [
+    { condition: { kind: 'can-cast', skillId: 'heal' }, action: { kind: 'defend' } },
+    { condition: { kind: 'always' }, action: { kind: 'attack', target: { kind: 'lowest-hp-enemy' } } },
+  ]
+
+  it('is true when the actor knows the skill and can afford its cost', () => {
+    const field = battle(
+      actor('self', 100, 100, { mp: 6, maxMp: 10, skills: ['tackle', 'heal'], skillCosts: { heal: 5 } }),
+      [],
+      [actor('e', 50, 100)],
+    )
+    expect(chooseAction(script, field)).toEqual({ kind: 'defend' })
+  })
+
+  it('is false when MP cannot cover the cost', () => {
+    const field = battle(
+      actor('self', 100, 100, { mp: 4, maxMp: 10, skills: ['tackle', 'heal'], skillCosts: { heal: 5 } }),
+      [],
+      [actor('e', 50, 100)],
+    )
+    expect(chooseAction(script, field)).toEqual({ kind: 'attack', targetId: 'e' })
+  })
+
+  it('is false when the skill is not known', () => {
+    const field = battle(actor('self', 100, 100, { mp: 10, maxMp: 10, skills: ['tackle'] }), [], [actor('e', 50, 100)])
+    expect(chooseAction(script, field)).toEqual({ kind: 'attack', targetId: 'e' })
+  })
+
+  it('treats a skill without a listed cost as free', () => {
+    const field = battle(actor('self', 100, 100, { mp: 0, maxMp: 10, skills: ['tackle', 'heal'] }), [], [actor('e', 50, 100)])
+    expect(chooseAction(script, field)).toEqual({ kind: 'defend' })
+  })
+
+  it('with no skillId is true when any known skill is affordable', () => {
+    const anyScript: AiScript = [
+      { condition: { kind: 'can-cast' }, action: { kind: 'defend' } },
+      { condition: { kind: 'always' }, action: { kind: 'attack', target: { kind: 'lowest-hp-enemy' } } },
+    ]
+    const field = battle(
+      actor('self', 100, 100, { mp: 8, maxMp: 10, skills: ['tackle', 'heal'], skillCosts: { heal: 5, tackle: 3 } }),
+      [],
+      [actor('e', 50, 100)],
+    )
+    expect(chooseAction(anyScript, field)).toEqual({ kind: 'defend' })
+  })
+
+  it('with no skillId is false when every known skill is unaffordable', () => {
+    const anyScript: AiScript = [
+      { condition: { kind: 'can-cast' }, action: { kind: 'defend' } },
+      { condition: { kind: 'always' }, action: { kind: 'attack', target: { kind: 'lowest-hp-enemy' } } },
+    ]
+    const field = battle(
+      actor('self', 100, 100, { mp: 1, maxMp: 10, skills: ['tackle', 'heal'], skillCosts: { heal: 5, tackle: 3 } }),
+      [],
+      [actor('e', 50, 100)],
+    )
+    expect(chooseAction(anyScript, field)).toEqual({ kind: 'attack', targetId: 'e' })
+  })
+})
+
+describe('and / any combinators', () => {
+  it('and is true when every nested condition holds', () => {
+    const script: AiScript = [
+      {
+        condition: { kind: 'and', conditions: [{ kind: 'mp-pct', op: '>', value: 0.5 }, { kind: 'can-cast', skillId: 'heal' }] },
+        action: { kind: 'defend' },
+      },
+      { condition: { kind: 'always' }, action: { kind: 'attack', target: { kind: 'lowest-hp-enemy' } } },
+    ]
+    const field = battle(
+      actor('self', 100, 100, { mp: 8, maxMp: 10, skills: ['heal'], skillCosts: { heal: 5 } }),
+      [],
+      [actor('e', 50, 100)],
+    )
+    expect(chooseAction(script, field)).toEqual({ kind: 'defend' })
+  })
+
+  it('and is false when any nested condition fails', () => {
+    const script: AiScript = [
+      {
+        condition: { kind: 'and', conditions: [{ kind: 'mp-pct', op: '>', value: 0.9 }, { kind: 'always' }] },
+        action: { kind: 'defend' },
+      },
+      { condition: { kind: 'always' }, action: { kind: 'attack', target: { kind: 'lowest-hp-enemy' } } },
+    ]
+    const field = battle(actor('self', 100, 100, { mp: 5, maxMp: 10 }), [], [actor('e', 50, 100)])
+    expect(chooseAction(script, field)).toEqual({ kind: 'attack', targetId: 'e' })
+  })
+
+  it('any is true when at least one nested condition holds', () => {
+    const script: AiScript = [
+      {
+        condition: { kind: 'any', conditions: [{ kind: 'hp-pct', scope: 'any-ally', op: '<', value: 0.5 }, { kind: 'mp-pct', op: '>', value: 0.5 }] },
+        action: { kind: 'defend' },
+      },
+      { condition: { kind: 'always' }, action: { kind: 'attack', target: { kind: 'lowest-hp-enemy' } } },
+    ]
+    const field = battle(actor('self', 100, 100, { mp: 9, maxMp: 10 }), [actor('ally', 40, 100)], [actor('e', 50, 100)])
+    expect(chooseAction(script, field)).toEqual({ kind: 'defend' })
+  })
+
+  it('any is false when no nested condition holds', () => {
+    const script: AiScript = [
+      {
+        condition: { kind: 'any', conditions: [{ kind: 'hp-pct', scope: 'any-ally', op: '<', value: 0.5 }, { kind: 'mp-pct', op: '>', value: 0.5 }] },
+        action: { kind: 'defend' },
+      },
+      { condition: { kind: 'always' }, action: { kind: 'attack', target: { kind: 'lowest-hp-enemy' } } },
+    ]
+    const field = battle(actor('self', 100, 100, { mp: 1, maxMp: 10 }), [actor('ally', 90, 100)], [actor('e', 50, 100)])
+    expect(chooseAction(script, field)).toEqual({ kind: 'attack', targetId: 'e' })
+  })
+
+  it('nests combinators recursively', () => {
+    const script: AiScript = [
+      {
+        condition: {
+          kind: 'and',
+          conditions: [
+            { kind: 'any', conditions: [{ kind: 'can-cast', skillId: 'heal' }, { kind: 'always' }] },
+            { kind: 'mp-pct', op: '>', value: 0.4 },
+          ],
+        },
+        action: { kind: 'defend' },
+      },
+      { condition: { kind: 'always' }, action: { kind: 'attack', target: { kind: 'lowest-hp-enemy' } } },
+    ]
+    const field = battle(actor('self', 100, 100, { mp: 6, maxMp: 10 }), [], [actor('e', 50, 100)])
+    expect(chooseAction(script, field)).toEqual({ kind: 'defend' })
+  })
+
+  it('rejects empty condition lists', () => {
+    const field = battle(actor('self', 100, 100), [], [actor('e', 50, 100)])
+    expect(() => chooseAction([{ condition: { kind: 'and', conditions: [] }, action: { kind: 'defend' } }], field)).toThrow(/at least one condition/)
+    expect(() => chooseAction([{ condition: { kind: 'any', conditions: [] }, action: { kind: 'defend' } }], field)).toThrow(/at least one condition/)
   })
 })

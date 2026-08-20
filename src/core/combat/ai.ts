@@ -47,6 +47,17 @@ export type AiCondition =
   | { kind: 'turns'; op: AiCompareOp; value: number }
   /** Global resolved-turn counter. */
   | { kind: 'turn-count'; op: AiCompareOp; value: number }
+  /** Own MP fraction in [0, 1]. */
+  | { kind: 'mp-pct'; op: AiCompareOp; value: number }
+  /**
+   * The actor can afford a skill's MP cost and knows the skill. `skillId`
+   * omitted → any known skill is castable.
+   */
+  | { kind: 'can-cast'; skillId?: string }
+  /** All nested conditions hold (short-circuits on the first false). */
+  | { kind: 'and'; conditions: AiCondition[] }
+  /** At least one nested condition holds (short-circuits on the first true). */
+  | { kind: 'any'; conditions: AiCondition[] }
 
 /** Where a chosen action points. */
 export type AiTarget =
@@ -82,11 +93,15 @@ export interface AiActorState {
   id: string
   hp: number
   maxHp: number
+  mp: number
+  maxMp: number
   statuses: readonly ActiveStatusKind[]
   /** Skill ids the actor knows; `skills[0]` is the primary skill. */
   skills: readonly string[]
   /** skillId → remaining on-cooldown own turns (absent/0 = ready). */
   cooldowns?: Readonly<Record<string, number>>
+  /** skillId → MP cost (battle layer fills from the skill catalog; absent = free). */
+  skillCosts?: Readonly<Record<string, number>>
 }
 
 /** Read-only battle snapshot the script judges from. */
@@ -126,6 +141,12 @@ function assertNonNegativeInt(value: number, name: string): void {
 function assertPositiveInt(value: number, name: string): void {
   if (!Number.isInteger(value) || value <= 0) {
     throw new RangeError(`${name} must be a positive integer, got ${value}`)
+  }
+}
+
+function assertNonEmptyConditions(value: readonly AiCondition[], name: string): void {
+  if (value.length === 0) {
+    throw new RangeError(`${name} must contain at least one condition`)
   }
 }
 
@@ -222,6 +243,26 @@ function evalCondition(condition: AiCondition, field: AiBattlefield): boolean {
       return field.turn % condition.divisor === condition.remainder
     case 'turn-count':
       return COMPARE[condition.op](field.turnCount, condition.value)
+    case 'mp-pct':
+      assertFraction(condition.value, 'mp-pct.value')
+      {
+        const frac = field.self.maxMp > 0 ? field.self.mp / field.self.maxMp : 0
+        return COMPARE[condition.op](frac, condition.value)
+      }
+    case 'can-cast': {
+      const castable = (skillId: string): boolean =>
+        field.self.skills.includes(skillId) &&
+        (field.self.skillCosts?.[skillId] ?? 0) <= field.self.mp
+      return condition.skillId !== undefined
+        ? castable(condition.skillId)
+        : field.self.skills.some(castable)
+    }
+    case 'and':
+      assertNonEmptyConditions(condition.conditions, 'and.conditions')
+      return condition.conditions.every((c) => evalCondition(c, field))
+    case 'any':
+      assertNonEmptyConditions(condition.conditions, 'any.conditions')
+      return condition.conditions.some((c) => evalCondition(c, field))
   }
 }
 

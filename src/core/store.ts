@@ -5,7 +5,7 @@
  * Stage 2 swaps the persistence behind `save.service.ts` for a mock API.
  */
 
-import type { SaveFile, PlayerProfile, ActiveRun, RunResult } from './types'
+import type { SaveFile, PlayerProfile, ActiveRun, RunResult, PlayerAiPresetId } from './types'
 import type { BattleResult } from './combat/types'
 import { loadSave, writeSave, createNewSave } from './save.service'
 import { ensureBoxCount } from './boxes'
@@ -150,6 +150,19 @@ export function abandonRun(): RunResult {
   writeSave(current)
   notify()
   return result
+}
+
+/**
+ * Sets a character's autobattle script (Phase 4 M1). `presetId` omitted (or
+ * `undefined`) returns the character to Manual. Takes effect on the character's
+ * next turn — never mid-turn (M2 exit criteria).
+ */
+export function setAutobattle(characterId: string, presetId: PlayerAiPresetId | undefined): void {
+  const character = current.profile.characters[characterId]
+  if (!character) throw new Error(`Character not found: ${characterId}`)
+  character.autobattle = presetId
+  writeSave(current)
+  notify()
 }
 
 /** Wraps run-end bookkeeping shared by victory / wipe / abandon. */

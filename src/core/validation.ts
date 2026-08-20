@@ -13,6 +13,7 @@ import type {
   Inventory,
   GearInstance,
   ActiveRun,
+  AutobattlePrefs,
   ShopStock,
   RecruitOffer,
   RunNode,
@@ -126,6 +127,23 @@ function validateRecruitOffer(v: unknown, path: string): RecruitOffer {
   return v as unknown as RecruitOffer
 }
 
+function validateAutobattlePrefs(v: unknown, path: string): AutobattlePrefs {
+  if (!isRecord(v)) throw new ValidationError(`${path}: expected object`)
+  if (v.speed !== 1 && v.speed !== 2 && v.speed !== 4) {
+    throw new ValidationError(`${path}.speed: expected 1, 2, or 4`)
+  }
+  if (typeof v.skipAnimations !== 'boolean') {
+    throw new ValidationError(`${path}.skipAnimations: expected boolean`)
+  }
+  if (!isRecord(v.stops)) throw new ValidationError(`${path}.stops: expected object`)
+  for (const key of ['boss', 'elite', 'permadeath', 'rest'] as const) {
+    if (typeof v.stops[key] !== 'boolean') {
+      throw new ValidationError(`${path}.stops.${key}: expected boolean`)
+    }
+  }
+  return v as unknown as AutobattlePrefs
+}
+
 function validateRunNode(v: unknown, path: string): RunNode {
   if (!isRecord(v)) throw new ValidationError(`${path}: expected object`)
   if (!isString(v.type)) throw new ValidationError(`${path}.type: expected string`)
@@ -194,6 +212,8 @@ function validateProfile(v: unknown, path: string): PlayerProfile {
     if (!Array.isArray(v.recruitment)) throw new ValidationError(`${path}.recruitment: expected array`)
     v.recruitment.forEach((r, i) => validateRecruitOffer(r, `${path}.recruitment[${i}]`))
   }
+  // Optional — v1 saves lack it; migrateSave default-fills (A12).
+  if (v.autobattle !== undefined) validateAutobattlePrefs(v.autobattle, `${path}.autobattle`)
   if (!isNumber(v.createdAt)) throw new ValidationError(`${path}.createdAt: expected number`)
   return v as unknown as PlayerProfile
 }

@@ -108,6 +108,13 @@ export interface ItemDef {
  */
 export type AiProfileId = 'minion' | 'tanky' | 'glass' | 'boss'
 
+/**
+ * Player autobattle presets (Phase 4 M1, `autobattle-and-idle.md` §2). Each
+ * maps to a priority script in `src/core/data/ai-presets.ts`; a character
+ * without one is Manual (A5 assigns a default at run start, overridable, A10).
+ */
+export type PlayerAiPresetId = 'dps' | 'healer'
+
 /** Static definition of an enemy. */
 export interface EnemyDef {
   id: string
@@ -142,6 +149,8 @@ export interface Character {
   loadout: string[]
   durability: Durability
   earned: { runs: number; wins: number }
+  /** Autobattle preset for this character; unset = Manual (Phase 4, A5/A10). */
+  autobattle?: PlayerAiPresetId
 }
 
 export interface Inventory {
@@ -155,6 +164,19 @@ export interface Box {
   slots: (string | null)[]
 }
 
+/**
+ * Autobattle + speed preferences, persisted per profile (Phase 4 A8/A9).
+ * `stops` are the auto-advance stop points (A9); party wipe and run end are
+ * always hard stops and are not configurable.
+ */
+export interface AutobattlePrefs {
+  /** Ticker clock scale — higher = turns resolve faster (M3). */
+  speed: 1 | 2 | 4
+  /** Skip animations: render each turn instantly; battle log untouched (A7). */
+  skipAnimations: boolean
+  stops: { boss: boolean; elite: boolean; permadeath: boolean; rest: boolean }
+}
+
 export interface PlayerProfile {
   profileId: string
   displayName: string
@@ -164,6 +186,8 @@ export interface PlayerProfile {
   boxes: Box[]
   inventory: Inventory
   party: string[]
+  /** Autobattle + speed prefs (Phase 4 A8/A9). */
+  autobattle: AutobattlePrefs
   stats: { totalRuns: number; wins: number; losses: number }
   createdAt: number
   /** Between-runs shop stock (`docs/phase-3-run-loop-plan.md` §5). */

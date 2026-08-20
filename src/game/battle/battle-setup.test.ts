@@ -13,6 +13,7 @@ function makeProfile(): PlayerProfile {
     boxes: [],
     inventory: { items: [], gear: [] },
     party: [],
+    autobattle: { speed: 1, skipAnimations: false, stops: { boss: true, elite: true, permadeath: true, rest: true } },
     stats: { totalRuns: 0, wins: 0, losses: 0 },
     shop: { always: [], rotating: { gear: [], skills: [] } },
     recruitment: [],

@@ -12,6 +12,7 @@ import {
   resolveRest,
   abandonRun,
   useItemOutOfBattle,
+  setAutobattle,
 } from './store'
 import { createCharacter } from './character'
 import { createGearInstance, addItem } from './inventory'
@@ -314,5 +315,28 @@ describe('run actions (Phase 3 M6)', () => {
       expect(result.error).toMatch(/in battle/)
       expect(getProfile().inventory.items.find((e) => e.itemId === 'health_potion')?.count).toBeGreaterThan(0)
     })
+  })
+})
+
+describe('setAutobattle (Phase 4 M1)', () => {
+  it('assigns a preset to a character and survives reload', () => {
+    const party = seedParty(1)
+    setAutobattle(party[0], 'dps')
+    expect(getProfile().characters[party[0]]?.autobattle).toBe('dps')
+
+    resetStore()
+    initStore()
+    expect(getProfile().characters[party[0]]?.autobattle).toBe('dps')
+  })
+
+  it('clears a preset when undefined is passed', () => {
+    const party = seedParty(1)
+    setAutobattle(party[0], 'healer')
+    setAutobattle(party[0], undefined)
+    expect(getProfile().characters[party[0]]?.autobattle).toBeUndefined()
+  })
+
+  it('throws for an unknown character', () => {
+    expect(() => setAutobattle('ghost', 'dps')).toThrow(/Character not found/)
   })
 })

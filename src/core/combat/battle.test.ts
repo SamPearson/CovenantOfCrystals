@@ -7,6 +7,7 @@ import type { BattleAction } from './types'
 import {
   createBattle,
   chooseEnemyAction,
+  choosePartyAction,
   getBattleResult,
   performAction,
 } from './battle'
@@ -403,5 +404,29 @@ describe('scroll items (phase 3, M5)', () => {
     actNext(battle, { kind: 'item', itemId: 'mana_potion', targetId: aria.id }, rng)
     expect(knight.mp).toBe(BALANCE.maxMp)
     expect(battle.log[0]!.text).toContain('recovers 20 MP')
+  })
+})
+
+describe('choosePartyAction (Phase 4 M1)', () => {
+  it('resolves the dps preset to a skill at the weakest foe', () => {
+    const aria = createCharacter({ classId: 'knight', name: 'Aria' })
+    const battle = createBattle([aria], [ENEMIES.slime!], 1)
+    expect(choosePartyAction(battle, aria.id, 'dps')).toEqual({
+      kind: 'skill',
+      skillId: 'slashing_strike',
+      targetId: 'slime#0',
+    })
+  })
+
+  it('resolves the healer preset to a defend when no ally is hurt', () => {
+    const mira = createCharacter({ classId: 'healer', name: 'Mira' })
+    const battle = createBattle([mira], [ENEMIES.slime!], 1)
+    expect(choosePartyAction(battle, mira.id, 'healer')).toEqual({ kind: 'defend' })
+  })
+
+  it('throws a citizen-facing error for an unknown actor', () => {
+    const aria = createCharacter({ classId: 'knight', name: 'Aria' })
+    const battle = createBattle([aria], [ENEMIES.slime!], 1)
+    expect(() => choosePartyAction(battle, 'ghost', 'dps')).toThrow(/unknown actor/)
   })
 })

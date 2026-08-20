@@ -206,15 +206,20 @@ Notes:
 
 ## 7. Milestones & exit criteria
 
-### M1 — Autobattle core ✅ prerequisite
+### M1 — Autobattle core ✅ done
 - Interpreter extension (`ai.ts`): `mp`/`maxMp`, `mp-pct`, `can-cast`, `and`/`any`.
 - `ai-presets.ts` (`dps`, `healer`, `getPlayerAiScript`, `defaultPresetFor`);
-  `battle.ts` `choosePartyAction`; `Character.autobattle` field + store action.
+  `battle.ts` `choosePartyAction`; `Character.autobattle` field + store action;
+  save schema v2 migration (`profile.autobattle` default-fill).
 - Exit: `tsc --noEmit` clean; interpreter tests for the new conditions +
   combinators; preset behavior tests (dps uses damaging skill when castable
   else attack; healer heals an ally below 60% else defends, defends when out
   of MP); `defaultPresetFor` maps heal-knowing characters → healer; enemy
   scripts unchanged (regression: existing `AI_SCRIPTS` still resolve).
+- **Done.** All exit criteria met: `tsc --noEmit` clean, 408/408 tests pass
+  (34 new M1 tests: `ai.test.ts` interpreter, `ai-presets.test.ts`,
+  `battle.test.ts` `choosePartyAction`, `store.test.ts` `setAutobattle`,
+  `save.service.test.ts` v1→v2 migration).
 
 ### M2 — BattleScene wiring
 - Per-card auto toggle + whole-party toggle; Manual hand-off mid-battle; the

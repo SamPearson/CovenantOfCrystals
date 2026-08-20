@@ -15,9 +15,9 @@ import type {
   BattleState,
   TurnOutcome,
 } from './types'
-import type { Character, EnemyDef, SkillDef } from '../types'
+import type { Character, EnemyDef, PlayerAiPresetId, SkillDef } from '../types'
 import { derivedStats } from '../character'
-import { getClass, getSkill, getItem, getAiScript, BALANCE } from '../data'
+import { getClass, getSkill, getItem, getAiScript, getPlayerAiScript, BALANCE } from '../data'
 import { timeToNextTurn, insertActor, removeActor, peekNext } from './timeline'
 import {
   physicalDamage,
@@ -499,13 +499,19 @@ function ccLabel(actor: BattleActor): string {
 
 /** Snapshot an actor for the AI interpreter (`src/core/combat/ai.ts`). */
 function toAiState(actor: BattleActor): AiActorState {
+  const skills = actor.skills ?? []
+  const skillCosts: Record<string, number> = {}
+  for (const skillId of skills) skillCosts[skillId] = getSkill(skillId).cost
   return {
     id: actor.id,
     hp: actor.hp,
     maxHp: actor.stats.hp,
+    mp: actor.mp,
+    maxMp: actor.maxMp ?? BALANCE.maxMp,
     statuses: actor.statuses.map((s) => s.kind),
-    skills: actor.skills ?? [],
+    skills,
     cooldowns: actor.cooldowns,
+    skillCosts,
   }
 }
 
@@ -532,6 +538,18 @@ export function chooseEnemyAction(
   if (!actor) throw new Error(`unknown actor: ${actorId}`)
   const script = getAiScript(actor.aiProfile ?? 'minion')
   return chooseAction(script, buildAiField(battle, actorId), rng)
+}
+
+/** Resolves a party actor's action from a Phase 4 autobattle preset script. */
+export function choosePartyAction(
+  battle: BattleState,
+  actorId: string,
+  presetId: PlayerAiPresetId,
+  rng?: Rng,
+): BattleAction {
+  const actor = battle.actors[actorId]
+  if (!actor) throw new Error(`unknown actor: ${actorId}`)
+  return chooseAction(getPlayerAiScript(presetId), buildAiField(battle, actorId), rng)
 }
 
 /** The outcome contract (§7). Throws if the battle is not finished. */
