@@ -13,8 +13,9 @@ import {
   roleLabel,
   elementLabel,
 } from '../format'
-import { getProfile } from '../../../core/store'
+import { getProfile, setAutobattle } from '../../../core/store'
 import { getClass, getItem, getSkill, derivedStats } from '../../../core'
+import type { PlayerAiPresetId } from '../../../core/types'
 
 export interface DetailAction {
   label: string
@@ -136,6 +137,48 @@ export function buildCharacterDetail(
   )
   yy += 12
 
+  uiText(
+    scene,
+    pad,
+    yy,
+    'AUTO BATTLE: how this hero fights. Off = manual · DPS/Healer use battle AI.',
+    { size: 'xs', color: textMuted, wordWrap: w - pad * 2 },
+    view,
+  )
+  yy += 16
+
+  // The selector must live in the LIVE `region.container` layer — `content`
+  // (view) is rendered into a texture and is non-interactive, so any buttons
+  // placed there are not clickable. Pinned just above the footer so it stays put
+  // while the stats/skills content scrolls.
+  const abY = h - 86
+  uiText(scene, pad, abY, 'AUTO BATTLE', { size: 'xs', color: heading }, region.container)
+  const aiOpts: { id: PlayerAiPresetId | undefined; label: string }[] = [
+    { id: undefined, label: 'Off' },
+    { id: 'dps', label: 'DPS' },
+    { id: 'healer', label: 'Healer' },
+  ]
+  let aiX = pad
+  for (const opt of aiOpts) {
+    const selected = c.autobattle === opt.id
+    const btn = makeButton(
+      scene,
+      aiX,
+      abY + 16,
+      opt.label,
+      () => setAutobattle(charId, opt.id),
+      {
+        width: 84,
+        height: 28,
+        fontSize: 'sm',
+        color: selected ? THEME.colors.accentBlue : THEME.colors.accent,
+      },
+      region.container,
+    )
+    if (selected) btn.setDisabled(true)
+    aiX += 90
+  }
+
   // Footer: action buttons pinned to the bottom of the region (fixed layer).
   const ay = h - 44
   let ax = pad
@@ -154,6 +197,6 @@ export function buildCharacterDetail(
   }
 
   // Reserve room below the content so the last line can scroll clear of the
-  // pinned footer.
-  region.setContentHeight(yy + 52)
+  // pinned AUTO BATTLE selector and footer.
+  region.setContentHeight(yy + 92)
 }

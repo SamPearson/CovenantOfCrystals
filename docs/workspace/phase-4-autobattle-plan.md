@@ -221,12 +221,26 @@ Notes:
   `battle.test.ts` `choosePartyAction`, `store.test.ts` `setAutobattle`,
   `save.service.test.ts` v1→v2 migration).
 
-### M2 — BattleScene wiring
+### M2 — BattleScene wiring ✅ done
 - Per-card auto toggle + whole-party toggle; Manual hand-off mid-battle; the
-  ticker drives autobattle turns; player input drives Manual turns.
+  scene auto-drives autobattle turns via `choosePartyAction`, player input
+  drives Manual turns (the headless `core/ticker/` lands in M5 and reuses the
+  same action resolvers).
 - Exit: full battle runs with any mix of auto/manual characters; toggling
   mid-battle takes effect next turn; same-actions-as-manual verified for both
   presets in the log.
+- **Done (revised).** `tsc --noEmit` clean, full suite 408/408 green. Battles
+  now default **every** character to Manual at start; `BattleScene.ts` seeds its
+  per-battle `mode` map to `'manual'` for all player actors. The per-character AI
+  script is selected in the Party menu (`buildCharacterDetail` in
+  `character-detail.ts`): an **AUTO BATTLE** selector with `Off` (default, =
+  Manual) / `DPS` / `Healer` that writes `Character.autobattle` via
+  `setAutobattle`; a card/party toggle to Auto then uses that preset (falling
+  back to `defaultPresetFor` if none was chosen). `BattleScene.ts` also gained a
+  per-card AUTO/MANUAL toggle and a whole-party toggle; a player actor in Auto
+  mode is resolved by `choosePartyAction` after a short delay (mirroring the enemy
+  pacing), Manual mode waits for button input. Toggling only affects the
+  character's next turn, so mid-battle switches take effect next turn.
 
 ### M3 — Speed controls
 - 1×/2×/4× (ticker clock scale), skip animations (instant render, log

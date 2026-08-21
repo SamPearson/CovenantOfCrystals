@@ -19,7 +19,9 @@ import { STONE_BG_KEY, createStoneTextures } from '../ui/textures'
 import { truncate } from '../ui/format'
 import { initStore, getProfile, mutate } from '../../core/store'
 import { removeItem } from '../../core/inventory'
-import { createBattle, performAction, chooseEnemyAction, getBattleResult } from '../../core/combat/battle'
+import { createBattle, performAction, chooseEnemyAction, choosePartyAction, getBattleResult } from '../../core/combat/battle'
+import { defaultPresetFor } from '../../core/data/ai-presets'
+import type { PlayerAiPresetId } from '../../core/types'
 import { peekNext, timeToNextTurn, compareEntries } from '../../core/combat/timeline'
 import { createRng } from '../../core/rng/rng'
 import { BALANCE } from '../../core/data/balance'
@@ -31,6 +33,7 @@ import type { BattleAction, BattleActor, BattleResult, BattleState } from '../..
 import type { EnemyDef } from '../../core/types'
 
 const ENEMY_DELAY = 600
+const AUTO_DELAY = 500
 const FLOAT_LIFETIME = 900
 
 const CARD_ENEMY_W = 170
@@ -73,6 +76,11 @@ export class BattleScene extends Phaser.Scene {
   private queueStripW = 0
   private enemyCards: Phaser.GameObjects.Container[] = []
   private partyCards: Phaser.GameObjects.Container[] = []
+
+  /** Per-actor autobattle mode for this battle: a preset id = Auto, 'manual' = Manual. */
+  private mode = new Map<string, PlayerAiPresetId | 'manual'>()
+  private cardToggles: Button[] = []
+  private partyToggle?: Button
 
   private queueStrip!: Phaser.GameObjects.Container
   private actionPanel!: Phaser.GameObjects.Container
@@ -123,6 +131,11 @@ export class BattleScene extends Phaser.Scene {
     this.rng = createRng(this.seed)
     const squad = data?.squad ?? scriptedSquad()
     this.battle = createBattle(party, squad, this.seed)
+    for (const actor of Object.values(this.battle.actors)) {
+      if (actor.side !== 'player') continue
+      const ch = getProfile().characters[actor.id]
+      this.mode.set(actor.id, ch?.autobattle ?? 'manual')
+    }
     this.seedLabel.setText(`Seed ${this.seed}`)
     this.pump()
   }
@@ -208,21 +221,40 @@ export class BattleScene extends Phaser.Scene {
     this.currentActorId = next.actorId
     this.render()
 
+    const actor = this.battle.actors[next.actorId]
     if (next.side === 'enemy') {
       this.busy = true
-      this.actionPrompt.setText(`${this.battle.actors[next.actorId]?.name ?? next.actorId} is acting…`)
+      this.actionPrompt.setText(`${actor?.name ?? next.actorId} is acting…`)
       this.time.delayedCall(ENEMY_DELAY, () => {
         this.busy = false
         if (this.battle.over) return
-        const actor = this.battle.actors[next.actorId]
-        if (!actor || actor.ko) {
+        const a = this.battle.actors[next.actorId]
+        if (!a || a.ko) {
           this.pump()
           return
         }
         this.dispatch(chooseEnemyAction(this.battle, next.actorId, this.rng))
       })
     } else {
-      this.busy = false
+      const m = this.mode.get(next.actorId)
+      if (m && m !== 'manual' && actor && !actor.ko) {
+        this.busy = true
+        this.render()
+        this.actionPrompt.setText(`${actor.name} (auto ${m})…`)
+        const preset = m
+        this.time.delayedCall(AUTO_DELAY, () => {
+          this.busy = false
+          if (this.battle.over) return
+          const a = this.battle.actors[next.actorId]
+          if (!a || a.ko) {
+            this.pump()
+            return
+          }
+          this.dispatch(choosePartyAction(this.battle, next.actorId, preset, this.rng))
+        })
+      } else {
+        this.busy = false
+      }
     }
   }
 
@@ -246,6 +278,53 @@ export class BattleScene extends Phaser.Scene {
     this.renderCards()
     this.renderLog()
     this.renderActions()
+    this.renderAutoControls()
+  }
+
+  /** Draws the whole-party Auto/Manual toggle (rebuilt each render to track label/state). */
+  private renderAutoControls(): void {
+    if (this.partyToggle) {
+      this.partyToggle.destroy()
+      this.partyToggle = undefined
+    }
+    const players = Object.values(this.battle.actors).filter((a) => a.side === 'player')
+    const anyManual = players.some((a) => this.mode.get(a.id) === 'manual')
+    this.partyToggle = makeButton(
+      this,
+      this.scale.width - THEME.spacing.pad - 250,
+      8,
+      anyManual ? 'Party: Auto' : 'Party: Manual',
+      () => this.toggleParty(),
+      { width: 120, height: 32 },
+      this.root,
+    )
+  }
+
+  /** Flip a single character between its autobattle preset and Manual (A10). */
+  private toggleActor(actorId: string): void {
+    const cur = this.mode.get(actorId)
+    if (cur === 'manual') {
+      const c = getProfile().characters[actorId]
+      this.mode.set(actorId, c?.autobattle ?? (c ? defaultPresetFor(c) : 'dps'))
+    } else {
+      this.mode.set(actorId, 'manual')
+    }
+    this.render()
+  }
+
+  /** Whole-party toggle: if anyone is Manual, switch all to Auto; else all to Manual. */
+  private toggleParty(): void {
+    const players = Object.values(this.battle.actors).filter((a) => a.side === 'player')
+    const anyManual = players.some((a) => this.mode.get(a.id) === 'manual')
+    for (const a of players) {
+      if (anyManual) {
+        const c = getProfile().characters[a.id]
+        this.mode.set(a.id, c?.autobattle ?? (c ? defaultPresetFor(c) : 'dps'))
+      } else {
+        this.mode.set(a.id, 'manual')
+      }
+    }
+    this.render()
   }
 
   // ---------------------------------------------------------------- cards
@@ -255,6 +334,8 @@ export class BattleScene extends Phaser.Scene {
     this.partyCards.forEach((c) => c.destroy(true))
     this.enemyCards = []
     this.partyCards = []
+    this.cardToggles.forEach((b) => b.destroy())
+    this.cardToggles = []
     this.cardCenters.clear()
 
     const enemies = Object.values(this.battle.actors).filter((a) => a.side === 'enemy')
@@ -300,6 +381,22 @@ export class BattleScene extends Phaser.Scene {
     if ((actor.maxMp ?? 0) > 0) this.buildMpBar(actor, w, card)
 
     this.buildStatusIcons(actor, card)
+
+    if (actor.side === 'player' && !actor.ko) {
+      const m = this.mode.get(actor.id)
+      const isAuto = m !== undefined && m !== 'manual'
+      const toggleLabel = isAuto ? (m as PlayerAiPresetId).toUpperCase() : 'MANUAL'
+      const toggle = makeButton(
+        this,
+        6,
+        CARD_H - 24,
+        toggleLabel,
+        () => this.toggleActor(actor.id),
+        { width: w - 12, height: 20, fontSize: 'xs', color: isAuto ? THEME.colors.accentBlue : THEME.colors.accent },
+        card,
+      )
+      this.cardToggles.push(toggle)
+    }
 
     this.cardCenters.set(actor.id, { x: x + w / 2, y: y + CARD_H / 2 })
 

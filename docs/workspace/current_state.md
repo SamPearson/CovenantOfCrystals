@@ -105,7 +105,23 @@ Phase 3 (runs & metagame) is complete. Milestones M1–M9 from
   hands off with `scene.start('ResultScene', { result })`.
 
 The full loop **recruit → gear → run → reward** is visible and repeatable.
-Leveling is deferred to Phase 4 (XP accumulates no level-ups). Phase 4
-(autobattle & idle) is next. Full suite passes (`npm run test`, 373 tests)
-and `tsc --noEmit` is clean.
+Leveling is deferred to Phase 4 (XP accumulates no level-ups).
+
+Phase 4 (autobattle & idle) is in progress. Milestones from
+`workspace/phase-4-autobattle-plan.md`:
+- **M1 — Autobattle core** ✅ done — interpreter extension (`mp`/`maxMp`,
+  `mp-pct`, `can-cast`, `and`/`any`), `ai-presets.ts` (`dps`/`healer` +
+  `defaultPresetFor`), `choosePartyAction` in `battle.ts`, `Character.autobattle`
+  field + `setAutobattle` store action, save schema v2 migration. 408/408 green.
+- **M2 — BattleScene wiring** ✅ done — per-card AUTO/MANUAL toggle + whole-party
+  toggle; Manual hand-off mid-battle; Auto turns driven by `choosePartyAction`
+  (headless ticker deferred to M5). Battles **default to Manual for all
+  characters**; the per-character AI script (`Off`/`DPS`/`Healer`) is selected
+  in the Party menu and stored via `setAutobattle`. Full suite 408/408 green,
+  `tsc --noEmit` clean.
+
+Remaining Phase 4 milestones: M3 (speed controls), M4 (auto-advance + stop
+dialog), M5 (headless ticker & leave/return), M6 (script DSL v2, later).
+
+Full suite passes (`npm run test`, 408 tests) and `tsc --noEmit` is clean.
 
