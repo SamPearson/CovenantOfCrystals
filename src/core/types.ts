@@ -174,6 +174,8 @@ export interface AutobattlePrefs {
   speed: 1 | 2 | 4
   /** Skip animations: render each turn instantly; battle log untouched (A7). */
   skipAnimations: boolean
+  /** How long the victory/result notice lingers on screen during auto-advance, in ms. */
+  resultDelayMs?: number
   stops: { boss: boolean; elite: boolean; permadeath: boolean; rest: boolean }
 }
 

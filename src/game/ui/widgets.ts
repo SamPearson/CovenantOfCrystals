@@ -237,6 +237,73 @@ export function makeBadge(
   return container
 }
 
+export interface Checkbox {
+  container: Phaser.GameObjects.Container
+  setChecked(value: boolean): void
+  destroy(): void
+}
+
+/**
+ * A clickable checkbox row (box + label). `onChange` fires on every toggle with
+ * the new checked state. Used by the Phase 4 M4 auto-advance stop-point dialog.
+ */
+export function makeCheckbox(
+  scene: Phaser.Scene,
+  x: number,
+  y: number,
+  label: string,
+  checked: boolean,
+  onChange: (checked: boolean) => void,
+  opts: { width?: number; height?: number } = {},
+  parent?: Phaser.GameObjects.Container,
+): Checkbox {
+  const height = opts.height ?? 28
+  const container = scene.add.container(x, y)
+  const t = THEME.colors
+
+  const boxSize = 18
+  const boxX = boxSize / 2 + 2
+  const box = scene.add
+    .rectangle(boxX, height / 2, boxSize, boxSize, 0x000000, 0.3)
+    .setStrokeStyle(1, t.borderLight, 0.8)
+    .setRounded(3)
+  const tick = uiText(scene, 0, 0, '✓', { size: 'sm', color: t.good, family: 'display' })
+    .setOrigin(0.5)
+    .setPosition(boxX, height / 2)
+    .setVisible(checked)
+  const text = uiText(scene, boxSize + 10, 0, label, { size: 'sm', color: t.text }, container)
+  text.y = (height - text.height) / 2
+
+  container.add([box, tick, text])
+
+  let isChecked = checked
+  function apply(): void {
+    tick.setVisible(isChecked)
+  }
+
+  function toggle(): void {
+    isChecked = !isChecked
+    apply()
+    onChange(isChecked)
+  }
+
+  box.setInteractive({ useHandCursor: true }).on('pointerdown', toggle)
+  text.setInteractive({ useHandCursor: true }).on('pointerdown', toggle)
+
+  if (parent) parent.add(container)
+
+  return {
+    container,
+    setChecked(value: boolean) {
+      isChecked = value
+      apply()
+    },
+    destroy() {
+      container.destroy(true)
+    },
+  }
+}
+
 export interface ScrollRegion {
   /** Top-left anchored container positioned at (x, y) in the parent. */
   container: Phaser.GameObjects.Container

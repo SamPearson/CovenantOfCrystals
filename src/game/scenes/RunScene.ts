@@ -22,7 +22,7 @@
 import Phaser from 'phaser'
 import { THEME, colorHex, hexColor, setTheme } from '../ui/theme'
 import { initThemes, getActiveTheme } from '../../core/themes'
-import { uiText, makePanel, makeButton, makeBadge } from '../ui/widgets'
+import { uiText, makePanel, makeButton, makeBadge, makeCheckbox } from '../ui/widgets'
 import type { Button } from '../ui/widgets'
 import { STONE_BG_KEY, createStoneTextures } from '../ui/textures'
 import {
@@ -33,10 +33,13 @@ import {
   resolveNode,
   resolveRest,
   useItemOutOfBattle,
+  setAutoStop,
+  setResultDelay,
 } from '../../core/store'
 import { partyByIds } from '../battle/battle-setup'
 import { hashString } from '../../core/rng/rng'
 import { RUN_LENGTHS } from '../../core/runs/run-gen'
+import { shouldStopBeforeAdvance } from '../../core/runs/autobattle'
 import { getItem, getSkill } from '../../core/data'
 import type { ActiveRun, EnemyDef, RunNode, RunResult } from '../../core/types'
 import type { BattleResult } from '../../core/combat/types'
@@ -109,6 +112,15 @@ export class RunScene extends Phaser.Scene {
         this.scene.start('ResultScene', { result })
         return
       }
+      // Run continues — auto-advance into the next node, or pause at a stop
+      // point (Phase 4 M4).
+      const run = getActiveRun()
+      if (run && run.status === 'active') {
+        this.advanceAfterBattle(run, data.battleResult)
+        return
+      }
+      this.buildStartScreen()
+      return
     }
 
     const run = getActiveRun()
@@ -180,6 +192,11 @@ export class RunScene extends Phaser.Scene {
     this.content.removeAll(true)
     this.buttons = []
     this.headerGold.setText(`Seed ${run.seed}  \u00b7  Gold ${run.goldEarned}`)
+
+    this.addButton(this.scale.width - 392, 8, 'Stop Points', () => this.openStopDialog(), {
+      width: 120,
+      height: 32,
+    })
 
     const node = run.nodes[run.currentNodeIndex]
     if (!node) {
@@ -307,12 +324,46 @@ export class RunScene extends Phaser.Scene {
       return
     }
     const battleSeed = hashString(`${run.seed}:${node.index}`)
+    const next = run.nodes[run.currentNodeIndex + 1] ?? null
     this.scene.start('BattleScene', {
       seed: battleSeed,
       squad: node.enemySquad,
       partyIds: run.party,
       returnTo: 'RunScene',
+      nextNode: next ? { type: next.type } : null,
     })
+  }
+
+  /**
+   * Phase 4 M4 auto-advance. After `resolveNode` has advanced the run, decide
+   * whether to pause at the run map (a stop point) or queue straight into the
+   * next node. Rest nodes with no stop are taken automatically and the loop
+   * re-evaluates the node after them. Party wipe / run-end are hard stops and
+   * are never reached here (the caller routes them to ResultScene first).
+   */
+  private advanceAfterBattle(run: ActiveRun, battleResult: BattleResult): void {
+    const prefs = getProfile().autobattle
+    let justFinishedKo = battleResult.koIds.slice()
+
+    for (let guard = 0; guard < 64; guard++) {
+      const nextNode = run.nodes[run.currentNodeIndex]
+      if (shouldStopBeforeAdvance(prefs, { koIds: justFinishedKo, nextNode })) {
+        this.buildRunMap(run)
+        return
+      }
+      if (!nextNode) {
+        this.scene.start('ResultScene', { result: this.fallbackResult(run) })
+        return
+      }
+      if (nextNode.type === 'rest') {
+        resolveRest()
+        justFinishedKo = []
+        continue
+      }
+      this.enterNode(run, nextNode)
+      return
+    }
+    this.buildRunMap(run)
   }
 
   // -------------------------------------------------------------------------
@@ -375,6 +426,72 @@ export class RunScene extends Phaser.Scene {
         bx += 112
       }
       y += 58
+    }
+
+    const closeBtn = makeButton(this, 24, panelH - 44, 'Close', () => close(), { width: panelW - 48, height: 32 }, panel)
+    this.buttons.push(closeBtn)
+
+    function close(): void {
+      panel.destroy()
+      dim.destroy()
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // Auto-advance stop-point dialog (Phase 4 M4, A9)
+  // -------------------------------------------------------------------------
+
+  private openStopDialog(): void {
+    const { width, height } = this.scale
+    const prefs = getProfile().autobattle
+
+    const dim = this.add.rectangle(0, 0, width, height, 0x000000, 0.6).setOrigin(0).setDepth(50)
+    dim.setInteractive()
+    dim.on('pointerdown', () => close())
+
+    const panelW = 360
+    const panelH = 360
+    const panel = makePanel(this, (width - panelW) / 2, (height - panelH) / 2, panelW, panelH, {}).setDepth(51)
+
+    uiText(this, 24, 16, 'Auto-Advance Stops', { size: 'lg', color: THEME.colors.gold, family: 'display' }, panel)
+    uiText(
+      this,
+      24,
+      48,
+      'Pause the auto-advance at these points. Party wipe and run end always stop.',
+      { size: 'xs', color: THEME.colors.textMuted, wordWrap: panelW - 48 },
+      panel,
+    )
+
+    const rows: { key: 'boss' | 'elite' | 'permadeath' | 'rest'; label: string }[] = [
+      { key: 'boss', label: 'Boss battles' },
+      { key: 'elite', label: 'Elite battles' },
+      { key: 'permadeath', label: 'Character permadeath' },
+      { key: 'rest', label: 'Rest points' },
+    ]
+    let y = 84
+    for (const row of rows) {
+      makeCheckbox(
+        this,
+        24,
+        y,
+        row.label,
+        prefs.stops[row.key],
+        (value) => setAutoStop({ [row.key]: value } as Parameters<typeof setAutoStop>[0]),
+        { width: panelW - 48 },
+        panel,
+      )
+      y += 44
+    }
+
+    uiText(this, 24, 272, 'Result display', { size: 'sm', color: THEME.colors.text }, panel)
+    const delayValue = uiText(this, 168, 272, `${((prefs.resultDelayMs ?? 3000) / 1000).toFixed(1)}s`, { size: 'sm', color: THEME.colors.gold }, panel)
+    makeButton(this, 250, 264, '-', () => changeDelay(-500), { width: 36, height: 32 }, panel)
+    makeButton(this, 292, 264, '+', () => changeDelay(500), { width: 36, height: 32 }, panel)
+    function changeDelay(delta: number): void {
+      const next = Math.max(0, Math.min(10000, (getProfile().autobattle.resultDelayMs ?? 3000) + delta))
+      setResultDelay(next)
+      delayValue.setText(`${(next / 1000).toFixed(1)}s`)
     }
 
     const closeBtn = makeButton(this, 24, panelH - 44, 'Close', () => close(), { width: panelW - 48, height: 32 }, panel)

@@ -7,7 +7,7 @@
 
 import type { SaveFile, PlayerProfile, ActiveRun, RunResult, PlayerAiPresetId } from './types'
 import type { BattleResult } from './combat/types'
-import { loadSave, writeSave, createNewSave } from './save.service'
+import { loadSave, writeSave, createNewSave, AUTOBATTLE_DEFAULTS } from './save.service'
 import { ensureBoxCount } from './boxes'
 import { seedStarterRoster } from './starter'
 import { generateRun } from './runs/run-gen'
@@ -163,6 +163,34 @@ export function setAutobattle(characterId: string, presetId: PlayerAiPresetId | 
   character.autobattle = presetId
   writeSave(current)
   notify()
+}
+
+/**
+ * Updates the auto-advance stop points (Phase 4 M4, A9). Each flag defaults on;
+ * party wipe and run end are always hard stops and are not part of this config.
+ * Persisted per profile via `mutate`.
+ */
+export function setAutoStop(
+  stops: { boss?: boolean; elite?: boolean; permadeath?: boolean; rest?: boolean },
+): void {
+  mutate((profile) => {
+    const s = profile.autobattle.stops
+    if (stops.boss !== undefined) s.boss = stops.boss
+    if (stops.elite !== undefined) s.elite = stops.elite
+    if (stops.permadeath !== undefined) s.permadeath = stops.permadeath
+    if (stops.rest !== undefined) s.rest = stops.rest
+  })
+}
+
+/**
+ * Sets how long the victory/result notice lingers on screen during auto-advance
+ * (Phase 4 M4). 0 = skip instantly; persisted per profile via `mutate`.
+ */
+export function setResultDelay(ms: number): void {
+  mutate((profile) => {
+    if (!profile.autobattle) profile.autobattle = { ...AUTOBATTLE_DEFAULTS }
+    profile.autobattle.resultDelayMs = ms
+  })
 }
 
 /** Wraps run-end bookkeeping shared by victory / wipe / abandon. */

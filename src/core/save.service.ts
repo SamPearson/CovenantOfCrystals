@@ -65,6 +65,7 @@ export function createNewSave(profileId?: string, displayName?: string): SaveFil
       autobattle: {
         speed: 1,
         skipAnimations: false,
+        resultDelayMs: 3000,
         stops: { boss: true, elite: true, permadeath: true, rest: true },
       },
       stats: { totalRuns: 0, wins: 0, losses: 0 },
@@ -81,6 +82,7 @@ export function createNewSave(profileId?: string, displayName?: string): SaveFil
 export const AUTOBATTLE_DEFAULTS: AutobattlePrefs = {
   speed: 1,
   skipAnimations: false,
+  resultDelayMs: 3000,
   stops: { boss: true, elite: true, permadeath: true, rest: true },
 }
 
@@ -91,6 +93,9 @@ export const AUTOBATTLE_DEFAULTS: AutobattlePrefs = {
  */
 function migrateSave(save: SaveFile): SaveFile {
   if (!save.profile.autobattle) save.profile.autobattle = { ...AUTOBATTLE_DEFAULTS }
+  else if (typeof save.profile.autobattle.resultDelayMs !== 'number') {
+    save.profile.autobattle.resultDelayMs = AUTOBATTLE_DEFAULTS.resultDelayMs
+  }
   save.schemaVersion = SCHEMA_VERSION
   return save
 }

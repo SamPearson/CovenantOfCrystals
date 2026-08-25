@@ -112,13 +112,14 @@ describe('schema v1 → v2 migration (Phase 4 M1)', () => {
     expect(loaded?.profile.autobattle).toEqual({
       speed: 1,
       skipAnimations: false,
+      resultDelayMs: 3000,
       stops: { boss: true, elite: true, permadeath: true, rest: true },
     })
   })
 
   it('keeps explicit autobattle preferences on load', () => {
     const save = createNewSave('prof-1', 'Ada')
-    save.profile.autobattle = { speed: 4, skipAnimations: true, stops: { boss: false, elite: true, permadeath: true, rest: false } }
+    save.profile.autobattle = { speed: 4, skipAnimations: true, resultDelayMs: 3000, stops: { boss: false, elite: true, permadeath: true, rest: false } }
     writeSave(save)
 
     const loaded = loadSave()

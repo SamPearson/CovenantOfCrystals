@@ -21,7 +21,8 @@ import { initStore, getProfile, mutate } from '../../core/store'
 import { removeItem } from '../../core/inventory'
 import { createBattle, performAction, chooseEnemyAction, choosePartyAction, getBattleResult } from '../../core/combat/battle'
 import { defaultPresetFor } from '../../core/data/ai-presets'
-import type { PlayerAiPresetId } from '../../core/types'
+import { shouldStopBeforeAdvance } from '../../core/runs/autobattle'
+import type { PlayerAiPresetId, RunNodeType } from '../../core/types'
 import { peekNext, timeToNextTurn, compareEntries } from '../../core/combat/timeline'
 import { createRng } from '../../core/rng/rng'
 import { BALANCE } from '../../core/data/balance'
@@ -52,6 +53,8 @@ export interface RunBattleData {
   partyIds?: string[]
   /** When set, the scene returns to this scene with a `battleResult` on completion. */
   returnTo?: string
+  /** The node that follows this battle, used to decide whether to auto-advance past the result screen. */
+  nextNode?: { type: RunNodeType } | null
 }
 
 export class BattleScene extends Phaser.Scene {
@@ -94,6 +97,8 @@ export class BattleScene extends Phaser.Scene {
   private partyRowY!: number
 
   private returnTo: string | null = null
+  private nextNode: { type: RunNodeType } | null = null
+  private resultReturned = false
 
   constructor() {
     super('BattleScene')
@@ -116,6 +121,7 @@ export class BattleScene extends Phaser.Scene {
     const data = this.scene.settings.data as RunBattleData | undefined
     this.scene.settings.data = {}
     this.returnTo = data?.returnTo ?? null
+    this.nextNode = data?.nextNode ?? null
 
     this.buildLayout(data?.returnTo ? 'Run Battle' : 'Test Battle')
 
@@ -776,6 +782,7 @@ export class BattleScene extends Phaser.Scene {
   // ---------------------------------------------------------------- result
 
   private showResult(): void {
+    this.resultReturned = false
     const result = getBattleResult(this.battle)
     const t = THEME.colors
 
@@ -815,6 +822,19 @@ export class BattleScene extends Phaser.Scene {
     line.setOrigin(0.5).setPosition(panelW / 2, lineY)
 
     if (this.returnTo) {
+      const autoAdvance = result.status === 'won' && !shouldStopBeforeAdvance(getProfile().autobattle, { koIds: result.koIds, nextNode: this.nextNode })
+      if (autoAdvance) {
+        const delayMs = getProfile().autobattle.resultDelayMs ?? 3000
+        const hint = uiText(this, 0, 0, '', { size: 'xs', color: t.textMuted, align: 'center' }, panel)
+        hint.setOrigin(0.5).setPosition(panelW / 2, 224)
+        const endAt = this.time.now + delayMs
+        const updateHint = (): void => {
+          hint.setText(`Auto-advancing in ${(Math.max(0, endAt - this.time.now) / 1000).toFixed(1)}s`)
+        }
+        updateHint()
+        this.time.addEvent({ delay: 100, loop: true, callback: updateHint })
+        this.time.delayedCall(delayMs, () => this.returnResult(result))
+      }
       makeButton(this, (panelW - 155) / 2, 250, 'Continue', () => this.returnResult(result), { width: 155 }, panel)
     } else {
       makeButton(this, 60, 250, 'Retry (new seed)', () => this.scene.restart({}), { width: 155 }, panel)
@@ -827,7 +847,8 @@ export class BattleScene extends Phaser.Scene {
    * run layer can apply rewards, permadeath and the next checkpoint.
    */
   private returnResult(result: BattleResult): void {
-    if (!this.returnTo) return
+    if (this.resultReturned || !this.returnTo) return
+    this.resultReturned = true
     this.scene.start(this.returnTo, { battleResult: result })
   }
 }
