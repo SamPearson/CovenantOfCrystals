@@ -25,6 +25,8 @@ import { shouldStopBeforeAdvance } from '../../core/runs/autobattle'
 import type { PlayerAiPresetId, RunNodeType } from '../../core/types'
 import { peekNext, timeToNextTurn, compareEntries } from '../../core/combat/timeline'
 import { createRng } from '../../core/rng/rng'
+import { createTicker } from '../../core/ticker'
+import type { Ticker, ScheduledTask } from '../../core/ticker'
 import { BALANCE } from '../../core/data/balance'
 import { getSkill, getItem } from '../../core/data'
 import { scriptedSquad, partyForBattle, partyByIds } from '../battle/battle-setup'
@@ -100,6 +102,14 @@ export class BattleScene extends Phaser.Scene {
   private nextNode: { type: RunNodeType } | null = null
   private resultReturned = false
 
+  /** M5 — rAF-independent wall-clock ticker; keeps resolving when the tab is hidden. */
+  private ticker!: Ticker
+  private pendingTask: ScheduledTask | null = null
+  private resultTask: ScheduledTask | null = null
+  private resultTick: ScheduledTask | null = null
+  private turnCountAtHidden = 0
+  private visibilityHandler?: () => void
+
   constructor() {
     super('BattleScene')
   }
@@ -114,6 +124,22 @@ export class BattleScene extends Phaser.Scene {
     this.add.image(this.scale.width / 2, this.scale.height / 2, STONE_BG_KEY)
 
     this.root = this.add.container(0, 0)
+
+    // M5 — rAF-independent wall-clock ticker. Drives turn pacing so the battle
+    // keeps resolving while the tab is hidden (Phaser's own clock pauses on blur).
+    this.ticker = createTicker()
+    this.ticker.start()
+    this.visibilityHandler = () => {
+      if (!this.battle) return
+      if (document.hidden) {
+        this.turnCountAtHidden = this.battle.turnCount
+      } else {
+        this.showAwayAudit()
+      }
+    }
+    document.addEventListener('visibilitychange', this.visibilityHandler)
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.teardownTicker())
+    this.events.once(Phaser.Scenes.Events.DESTROY, () => this.teardownTicker())
 
     // Phaser 4 keeps settings.data when a scene is restarted without a data
     // argument, so a finished battle's handoff would otherwise leak into the
@@ -231,7 +257,9 @@ export class BattleScene extends Phaser.Scene {
     if (next.side === 'enemy') {
       this.busy = true
       this.actionPrompt.setText(`${actor?.name ?? next.actorId} is acting…`)
-      this.time.delayedCall(ENEMY_DELAY, () => {
+      this.pendingTask?.cancel()
+      this.pendingTask = this.ticker.schedule(ENEMY_DELAY, () => {
+        if (!this.scene.isActive('BattleScene')) return
         this.busy = false
         if (this.battle.over) return
         const a = this.battle.actors[next.actorId]
@@ -248,7 +276,9 @@ export class BattleScene extends Phaser.Scene {
         this.render()
         this.actionPrompt.setText(`${actor.name} (auto ${m})…`)
         const preset = m
-        this.time.delayedCall(AUTO_DELAY, () => {
+        this.pendingTask?.cancel()
+        this.pendingTask = this.ticker.schedule(AUTO_DELAY, () => {
+          if (!this.scene.isActive('BattleScene')) return
           this.busy = false
           if (this.battle.over) return
           const a = this.battle.actors[next.actorId]
@@ -260,6 +290,8 @@ export class BattleScene extends Phaser.Scene {
         })
       } else {
         this.busy = false
+        this.pendingTask?.cancel()
+        this.pendingTask = null
       }
     }
   }
@@ -827,13 +859,15 @@ export class BattleScene extends Phaser.Scene {
         const delayMs = getProfile().autobattle.resultDelayMs ?? 3000
         const hint = uiText(this, 0, 0, '', { size: 'xs', color: t.textMuted, align: 'center' }, panel)
         hint.setOrigin(0.5).setPosition(panelW / 2, 224)
-        const endAt = this.time.now + delayMs
+        const endAt = this.ticker.now() + delayMs
         const updateHint = (): void => {
-          hint.setText(`Auto-advancing in ${(Math.max(0, endAt - this.time.now) / 1000).toFixed(1)}s`)
+          hint.setText(`Auto-advancing in ${(Math.max(0, endAt - this.ticker.now()) / 1000).toFixed(1)}s`)
         }
         updateHint()
-        this.time.addEvent({ delay: 100, loop: true, callback: updateHint })
-        this.time.delayedCall(delayMs, () => this.returnResult(result))
+        this.resultTick?.cancel()
+        this.resultTick = this.ticker.onTick(updateHint)
+        this.resultTask?.cancel()
+        this.resultTask = this.ticker.schedule(delayMs, () => this.returnResult(result))
       }
       makeButton(this, (panelW - 155) / 2, 250, 'Continue', () => this.returnResult(result), { width: 155 }, panel)
     } else {
@@ -849,6 +883,58 @@ export class BattleScene extends Phaser.Scene {
   private returnResult(result: BattleResult): void {
     if (this.resultReturned || !this.returnTo) return
     this.resultReturned = true
+    this.resultTask?.cancel()
+    this.resultTick?.cancel()
     this.scene.start(this.returnTo, { battleResult: result })
+  }
+
+  /** M5 — stop the ticker and detach listeners when the scene goes away. */
+  private teardownTicker(): void {
+    this.ticker?.stop()
+    this.pendingTask?.cancel()
+    this.resultTask?.cancel()
+    this.resultTick?.cancel()
+    if (this.visibilityHandler) {
+      document.removeEventListener('visibilitychange', this.visibilityHandler)
+      this.visibilityHandler = undefined
+    }
+  }
+
+  /**
+   * M5 — audit log on return: when the tab regains focus, summarize how much of
+   * the battle resolved while it was hidden so the player isn't surprised by the
+   * current mid-battle state.
+   */
+  private showAwayAudit(): void {
+    this.render()
+    if (!this.battle) return
+    const resolved = this.battle.turnCount - this.turnCountAtHidden
+    if (resolved <= 0) return
+
+    const t = THEME.colors
+    let msg = `While you were away: ${resolved} turn${resolved === 1 ? '' : 's'} resolved.`
+    if (this.battle.over) {
+      const st = this.battle.status
+      msg += st === 'won' ? ' Victory!' : st === 'lost' ? ' Defeat.' : ' Battle fled.'
+    } else {
+      msg += ' Battle in progress.'
+    }
+
+    const banner = uiText(
+      this,
+      this.scale.width / 2,
+      72,
+      msg,
+      { size: 'sm', color: t.gold, align: 'center', family: 'display' },
+      this.root,
+    )
+    banner.setOrigin(0.5).setDepth(200)
+    this.tweens.add({
+      targets: banner,
+      alpha: 0,
+      delay: 3500,
+      duration: 600,
+      onComplete: () => banner.destroy(),
+    })
   }
 }
