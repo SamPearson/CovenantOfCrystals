@@ -85,6 +85,39 @@ export const ITEMS: Record<string, ItemDef> = {
     rarity: 'rare', use: { healMp: 80 }, value: 100,
   },
 
+  // Stat-shots (Phase 4.5.1, I1): permanent +N to a single base stat. One per stat.
+  shot_hp_5: {
+    id: 'shot_hp_5', name: 'Essence of Vitality', type: 'stat-shot', rarity: 'common',
+    boostStat: { stat: 'hp', amount: 5 }, value: 200,
+  },
+  shot_atk_1: {
+    id: 'shot_atk_1', name: 'Vial of Strength', type: 'stat-shot', rarity: 'common',
+    boostStat: { stat: 'atk', amount: 1 }, value: 200,
+  },
+  shot_def_1: {
+    id: 'shot_def_1', name: 'Vial of Fortitude', type: 'stat-shot', rarity: 'common',
+    boostStat: { stat: 'def', amount: 1 }, value: 200,
+  },
+  shot_mag_1: {
+    id: 'shot_mag_1', name: 'Vial of Insight', type: 'stat-shot', rarity: 'common',
+    boostStat: { stat: 'mag', amount: 1 }, value: 200,
+  },
+  shot_res_1: {
+    id: 'shot_res_1', name: 'Vial of Warding', type: 'stat-shot', rarity: 'common',
+    boostStat: { stat: 'res', amount: 1 }, value: 200,
+  },
+  shot_spd_1: {
+    id: 'shot_spd_1', name: 'Vial of Swiftness', type: 'stat-shot', rarity: 'common',
+    boostStat: { stat: 'spd', amount: 1 }, value: 200,
+  },
+
+  // Demo gear that grants a skill while equipped (Phase 4.5.1, I6).
+  flame_staff: {
+    id: 'flame_staff', name: 'Staff of Embers', type: 'weapon', rarity: 'rare',
+    statBonus: { mag: 12, res: 4 }, value: 450,
+    grantsSkillWhenEquipped: 'fireball',
+  },
+
   // Skill tomes & scrolls (auto-generated from SKILLS, see ./skill-items)
   ...SKILL_SCROLLS,
   ...SKILL_TOMES,

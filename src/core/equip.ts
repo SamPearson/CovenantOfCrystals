@@ -63,6 +63,12 @@ export function equipGear(
   character.gear[slot] = gear
   if (previous) profile.inventory.gear.push(previous)
 
+  // Gear that grants a skill makes that skill usable while equipped (I6/I7).
+  const granted = getItem(gear.itemId).grantsSkillWhenEquipped
+  if (granted && !character.loadout.includes(granted)) {
+    character.loadout.push(granted)
+  }
+
   return profile
 }
 
@@ -79,5 +85,12 @@ export function unequipSlot(
   if (!gear) return undefined
   character.gear[slot] = undefined
   profile.inventory.gear.push(gear)
+
+  // Silently drop a gear-granted skill from the loadout if it isn't also learned (I7).
+  const granted = getItem(gear.itemId).grantsSkillWhenEquipped
+  if (granted && !character.learnedSkills.includes(granted)) {
+    character.loadout = character.loadout.filter((s) => s !== granted)
+  }
+
   return gear
 }

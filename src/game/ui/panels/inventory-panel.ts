@@ -1,9 +1,9 @@
 import { Panel } from './panel'
 import { THEME } from '../theme'
-import { uiText, makeSubpanel } from '../widgets'
+import { uiText, makeSubpanel, makeBadge } from '../widgets'
 import { durabilityLabel, itemTypeLabel } from '../format'
 import { getProfile } from '../../../core/store'
-import { getItem } from '../../../core'
+import { getItem, getSkill } from '../../../core'
 
 export class InventoryPanel extends Panel {
   refresh(): void {
@@ -49,11 +49,12 @@ export class InventoryPanel extends Panel {
 
     const itemsX = pad * 2 + colW
     const itemsY = pad
+    const itemRowH = 56
     uiText(this.scene, itemsX, itemsY - 2, 'CONSUMABLES & TOMES', { size: 'xs', color: THEME.colors.accentBlue }, content)
     let iy = itemsY + 18
     for (const entry of profile.inventory.items) {
       const item = getItem(entry.itemId)
-      makeSubpanel(this.scene, content, itemsX, iy, colW, rowH)
+      makeSubpanel(this.scene, content, itemsX, iy, colW, itemRowH)
       uiText(this.scene, itemsX + 8, iy + 6, item.name, { size: 'sm' }, content)
       uiText(
         this.scene,
@@ -63,15 +64,36 @@ export class InventoryPanel extends Panel {
         { size: 'sm', color: THEME.colors.textMuted },
         content,
       ).setOrigin(1, 0)
+
+      let effect = ''
+      if (item.type === 'stat-shot' && item.boostStat) {
+        effect = `Boosts ${item.boostStat.stat.toUpperCase()} +${item.boostStat.amount} (permanent)`
+      } else if (item.type === 'tome' && item.grantsSkill) {
+        effect = `Teaches ${getSkill(item.grantsSkill).name}`
+      } else {
+        effect = `${itemTypeLabel(item.type)} · ${item.value} gold`
+      }
       uiText(
         this.scene,
         itemsX + 8,
-        iy + 22,
-        `${itemTypeLabel(item.type)} · ${item.value} gold`,
-        { size: 'xs', color: THEME.colors.textMuted },
+        iy + 24,
+        effect,
+        { size: 'xs', color: THEME.colors.textMuted, wordWrap: colW - 16 },
         content,
       )
-      iy += rowH + 4
+
+      if (item.type === 'stat-shot' || item.type === 'tome') {
+        makeBadge(
+          this.scene,
+          itemsX + colW - 90,
+          iy + itemRowH - 18,
+          'not sellable',
+          THEME.colors.textDim,
+          {},
+          content,
+        )
+      }
+      iy += itemRowH + 4
     }
   }
 }

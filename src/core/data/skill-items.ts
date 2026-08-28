@@ -67,7 +67,7 @@ export function tomeFor(skillId: string): ItemDef {
     name: `Tome: ${skill.name}`,
     type: 'tome',
     rarity: tier,
-    skill: skillId,
+    grantsSkill: skillId,
     value: priceFor(tier, true),
   }
 }

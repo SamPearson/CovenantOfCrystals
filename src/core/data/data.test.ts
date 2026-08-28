@@ -31,8 +31,8 @@ describe('data integrity', () => {
   it('tomes grant a known skill', () => {
     for (const i of Object.values(ITEMS)) {
       if (i.type === 'tome') {
-        expect(i.skill).toBeDefined()
-        expect(SKILLS[i.skill!], `tome ${i.id}`).toBeDefined()
+        expect(i.grantsSkill).toBeDefined()
+        expect(SKILLS[i.grantsSkill!], `tome ${i.id}`).toBeDefined()
       }
     }
   })
@@ -42,6 +42,25 @@ describe('data integrity', () => {
       if (i.type === 'scroll') {
         expect(i.castSkill).toBeDefined()
         expect(SKILLS[i.castSkill!], `scroll ${i.id}`).toBeDefined()
+      }
+    }
+  })
+
+  it('stat-shots boost a known stat by a positive integer', () => {
+    const STAT_KEYS = ['hp', 'atk', 'def', 'mag', 'res', 'spd']
+    for (const i of Object.values(ITEMS)) {
+      if (i.type === 'stat-shot') {
+        expect(i.boostStat, `stat-shot ${i.id}`).toBeDefined()
+        expect(STAT_KEYS, `stat-shot ${i.id} stat`).toContain(i.boostStat!.stat)
+        expect(Number.isInteger(i.boostStat!.amount) && i.boostStat!.amount > 0, `stat-shot ${i.id} amount`).toBe(true)
+      }
+    }
+  })
+
+  it('gear-granted skills resolve to a known skill', () => {
+    for (const i of Object.values(ITEMS)) {
+      if (i.grantsSkillWhenEquipped) {
+        expect(SKILLS[i.grantsSkillWhenEquipped], `gear ${i.id} grantsSkillWhenEquipped`).toBeDefined()
       }
     }
   })
@@ -79,7 +98,7 @@ describe('skill items', () => {
       expect(scroll.rarity).toBeDefined()
       expect(tome.rarity).toBeDefined()
       expect(scroll.castSkill).toBe(id)
-      expect(tome.skill).toBe(id)
+      expect(tome.grantsSkill).toBe(id)
     }
   })
 })

@@ -14,7 +14,7 @@ import {
   elementLabel,
 } from '../format'
 import { getProfile, setAutobattle } from '../../../core/store'
-import { getClass, getItem, getSkill, derivedStats } from '../../../core'
+import { getClass, getItem, getSkill, derivedStats, getSkillPool } from '../../../core'
 import type { PlayerAiPresetId } from '../../../core/types'
 
 export interface DetailAction {
@@ -115,17 +115,32 @@ export function buildCharacterDetail(
 
   uiText(scene, pad, yy, 'SKILLS', { size: 'xs', color: heading }, view)
   yy += 16
-  const loadout =
-    c.loadout.length > 0 ? c.loadout.map((id) => getSkill(id).name).join(', ') : '—'
-  const skills = uiText(
-    scene,
-    pad,
-    yy,
-    loadout,
-    { size: 'xs', color: textMuted, wordWrap: w - pad * 2 },
-    view,
-  )
-  yy += skills.height + 8
+  const pool = getSkillPool(c)
+  if (pool.length === 0) {
+    const none = uiText(scene, pad, yy, '—', { size: 'xs', color: textMuted }, view)
+    yy += none.height + 8
+  } else {
+    for (const entry of pool) {
+      const sourceTag =
+        entry.source === 'native' ? 'native' : entry.source === 'learned' ? 'learned' : 'gear'
+      uiText(scene, pad, yy, getSkill(entry.skillId).name, { size: 'xs', color: textMuted }, view)
+      const tag = makeBadge(
+        scene,
+        pad + 110,
+        yy - 2,
+        sourceTag,
+          entry.source === 'gear'
+            ? THEME.colors.warn
+            : entry.source === 'learned'
+              ? THEME.colors.good
+              : THEME.colors.textDim,
+        {},
+        view,
+      )
+      yy += Math.max(18, tag.height + 6)
+    }
+    yy += 4
+  }
 
   uiText(
     scene,

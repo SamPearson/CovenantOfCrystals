@@ -13,6 +13,10 @@ import {
   abandonRun,
   useItemOutOfBattle,
   setAutobattle,
+  applyStatShot,
+  applyTome,
+  equipItem,
+  unequipItem,
 } from './store'
 import { createCharacter } from './character'
 import { createGearInstance, addItem } from './inventory'
@@ -315,6 +319,71 @@ describe('run actions (Phase 3 M6)', () => {
       expect(result.error).toMatch(/in battle/)
       expect(getProfile().inventory.items.find((e) => e.itemId === 'health_potion')?.count).toBeGreaterThan(0)
     })
+  })
+})
+
+describe('items: stat-shots & tomes (Phase 4.5.1)', () => {
+  it('applies a stat-shot permanently to base stats and survives reload', () => {
+    const party = seedParty(1)
+    const charId = party[0]
+    mutate((p) => addItem(p, 'shot_atk_1', 1))
+    const before = getProfile().characters[charId]?.statBonus?.atk ?? 0
+
+    const result = applyStatShot(charId, 'shot_atk_1')
+    expect(result.ok).toBe(true)
+    expect(getProfile().characters[charId]?.statBonus?.atk).toBe(before + 1)
+    expect(getProfile().inventory.items.find((e) => e.itemId === 'shot_atk_1')).toBeUndefined()
+
+    resetStore()
+    initStore()
+    expect(getProfile().characters[charId]?.statBonus?.atk).toBe(before + 1)
+  })
+
+  it('teaches a tome skill, consuming it, and survives reload', () => {
+    const party = seedParty(1)
+    const charId = party[0]
+    mutate((p) => addItem(p, 'tome_fireball', 1))
+
+    const result = applyTome(charId, 'tome_fireball')
+    expect(result.ok).toBe(true)
+    expect(getProfile().characters[charId]?.learnedSkills).toContain('fireball')
+    expect(getProfile().characters[charId]?.loadout).toContain('fireball')
+    expect(getProfile().inventory.items.find((e) => e.itemId === 'tome_fireball')).toBeUndefined()
+
+    resetStore()
+    initStore()
+    expect(getProfile().characters[charId]?.learnedSkills).toContain('fireball')
+  })
+
+  it('refuses a tome for an already-known skill without consuming it', () => {
+    const party = seedParty(1)
+    const charId = party[0]
+    mutate((p) => {
+      addItem(p, 'tome_slashing_strike', 1)
+      getProfile().characters[charId]!.learnedSkills.push('slashing_strike')
+      getProfile().characters[charId]!.loadout.push('slashing_strike')
+    })
+    const result = applyTome(charId, 'tome_slashing_strike')
+    expect(result.ok).toBe(false)
+    expect(result.alreadyKnown).toBe(true)
+    expect(getProfile().inventory.items.find((e) => e.itemId === 'tome_slashing_strike')?.count).toBe(1)
+  })
+
+  it('adds a gear-granted skill to the loadout and silently drops it on unequip', () => {
+    const party = seedParty(1)
+    const charId = party[0]
+    mutate((p) => {
+      const staff = createGearInstance('flame_staff', { kind: 'permanent' })
+      p.inventory.gear.push(staff)
+    })
+    const staffId = getProfile().inventory.gear.find((g) => g.itemId === 'flame_staff')!.id
+
+    equipItem(charId, staffId)
+    expect(getProfile().characters[charId]?.loadout).toContain('fireball')
+
+    unequipItem(charId, 'weapon')
+    expect(getProfile().characters[charId]?.loadout).not.toContain('fireball')
+    expect(getProfile().characters[charId]?.gear.weapon).toBeUndefined()
   })
 })
 

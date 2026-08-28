@@ -32,7 +32,7 @@ export type Element =
 
 export type SkillKind = 'damage' | 'heal' | 'buff' | 'debuff' | 'utility'
 export type SkillTargets = 'single' | 'all-allies' | 'all-enemies' | 'self'
-export type ItemType = 'weapon' | 'armor' | 'consumable' | 'tome' | 'scroll' | 'misc'
+export type ItemType = 'weapon' | 'armor' | 'consumable' | 'tome' | 'scroll' | 'stat-shot' | 'misc'
 export type Rarity = 'common' | 'rare' | 'epic' | 'legendary'
 
 /**
@@ -94,10 +94,14 @@ export interface ItemDef {
   type: ItemType
   rarity: Rarity
   statBonus?: Partial<StatBlock>
+  /** Stat-shots (Phase 4.5.1): a permanent additive bonus to one base stat. */
+  boostStat?: { stat: StatKey; amount: number }
   /** Tomes: skillId permanently granted when consumed in the meta layer. */
-  skill?: string
+  grantsSkill?: string
   /** Scrolls: skillId cast when used in battle — no MP cost, no cooldown. */
   castSkill?: string
+  /** Gear (weapon/armor) that grants a skill while equipped (Phase 4.5.1). */
+  grantsSkillWhenEquipped?: string
   use?: { healHp?: number; healMp?: number }
   value: number
 }
@@ -147,6 +151,8 @@ export interface Character {
   gear: { weapon?: GearInstance; armor?: GearInstance }
   learnedSkills: string[]
   loadout: string[]
+  /** Permanent item-granted base-stat bonuses (stat-shots), persisted per-character (Phase 4.5.1). */
+  statBonus?: Partial<StatBlock>
   durability: Durability
   earned: { runs: number; wins: number }
   /** Autobattle preset for this character; unset = Manual (Phase 4, A5/A10). */

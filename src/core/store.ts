@@ -12,8 +12,11 @@ import { ensureBoxCount } from './boxes'
 import { seedStarterRoster } from './starter'
 import { generateRun } from './runs/run-gen'
 import { resolveBattleResult, resolveRestNode, tickDurability } from './runs/resolve'
-import { removeItem } from './inventory'
+import { removeItem, findGearById } from './inventory'
 import { getItem, getSkill } from './data'
+import { equipGear, unequipSlot } from './equip'
+import { applyStatShot as coreApplyStatShot, applyTome as coreApplyTome } from './items/apply'
+import { validateLoadout } from './items'
 import { refreshShopStock } from './shop/shop'
 import { refreshRecruitment } from './shop/recruitment'
 import { createRng } from './rng/rng'
@@ -221,15 +224,15 @@ export function useItemOutOfBattle(characterId: string, itemId: string): ItemUse
   const character = current.profile.characters[characterId]
   if (!character) return { ok: false, error: 'Character not found' }
 
-  if (item.type === 'tome' && item.skill) {
-    if (character.learnedSkills.includes(item.skill)) {
-      return { ok: false, error: `${character.name} already knows ${getSkill(item.skill).name} (tomes are single-use)` }
-    }
-    character.learnedSkills.push(item.skill)
-    character.loadout.push(item.skill)
-    removeItem(current.profile, itemId, 1)
-    writeSave(current)
-    notify()
+  if (item.type === 'tome') {
+    const result = applyTome(characterId, itemId)
+    if (!result.ok) return { ok: false, error: result.error }
+    return { ok: true }
+  }
+
+  if (item.type === 'stat-shot') {
+    const result = applyStatShot(characterId, itemId)
+    if (!result.ok) return { ok: false, error: result.error }
     return { ok: true }
   }
 
@@ -238,6 +241,83 @@ export function useItemOutOfBattle(characterId: string, itemId: string): ItemUse
   }
 
   return { ok: false, error: `${item.name} cannot be used here` }
+}
+
+export interface ApplyItemResult {
+  ok: boolean
+  error?: string
+  /** Tomes: true when the skill was already known (item refused, not consumed). */
+  alreadyKnown?: boolean
+}
+
+/**
+ * Phase 4.5.1 (I1/I3/I4): applies a stat-shot to a character permanently. The
+ * bonus is written to `Character.statBonus` and persists; the item is consumed.
+ */
+export function applyStatShot(characterId: string, itemId: string): ApplyItemResult {
+  const item = getItem(itemId)
+  const character = current.profile.characters[characterId]
+  if (!character) return { ok: false, error: 'Character not found' }
+  if (item.type !== 'stat-shot' || !item.boostStat) {
+    return { ok: false, error: `${item.name} is not a stat-shot` }
+  }
+  coreApplyStatShot(character, item)
+  removeItem(current.profile, itemId, 1)
+  writeSave(current)
+  notify()
+  return { ok: true }
+}
+
+/**
+ * Phase 4.5.1 (I1/I5): teaches a tome's skill to a character permanently. Refuses
+ * (no consume) when already known. On success the skill is added to both
+ * `learnedSkills` and `loadout`.
+ */
+export function applyTome(characterId: string, itemId: string): ApplyItemResult {
+  const item = getItem(itemId)
+  const character = current.profile.characters[characterId]
+  if (!character) return { ok: false, error: 'Character not found' }
+  if (item.type !== 'tome' || !item.grantsSkill) {
+    return { ok: false, error: `${item.name} is not a tome` }
+  }
+  const result = coreApplyTome(character, item)
+  if (result.alreadyKnown) {
+    return { ok: false, error: `${character.name} already knows ${getSkill(item.grantsSkill).name} (tomes are single-use)`, alreadyKnown: true }
+  }
+  removeItem(current.profile, itemId, 1)
+  writeSave(current)
+  notify()
+  return { ok: true }
+}
+
+/**
+ * Phase 4.5.1 (I6/I7): equips gear and revalidates the character's loadout so any
+ * gear-granted skill appears, and removes entries no longer available.
+ */
+export function equipItem(characterId: string, gearId: string): ItemUseResult {
+  const gear = findGearById(current.profile, gearId)
+  const character = current.profile.characters[characterId]
+  if (!character) return { ok: false, error: 'Character not found' }
+  if (!gear) return { ok: false, error: 'Gear not found' }
+  mutate((p) => {
+    equipGear(p, characterId, gearId)
+    validateLoadout(p.characters[characterId])
+  })
+  return { ok: true }
+}
+
+/**
+ * Phase 4.5.1 (I7): unequips gear and revalidates the loadout so any skill the
+ * gear granted is silently dropped (I7 — no error, just removed from loadout).
+ */
+export function unequipItem(characterId: string, slot: 'weapon' | 'armor'): ItemUseResult {
+  const character = current.profile.characters[characterId]
+  if (!character) return { ok: false, error: 'Character not found' }
+  mutate((p) => {
+    const removed = unequipSlot(p, characterId, slot)
+    if (removed) validateLoadout(p.characters[characterId])
+  })
+  return { ok: true }
 }
 
 /** Test helper: clears in-memory state and listeners. */

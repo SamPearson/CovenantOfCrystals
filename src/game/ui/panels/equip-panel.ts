@@ -1,10 +1,10 @@
 import { Panel } from './panel'
 import { THEME } from '../theme'
-import { uiText, makeButton, makeSubpanel } from '../widgets'
+import { uiText, makeButton, makeSubpanel, makeBadge } from '../widgets'
 import { durabilityLabel, itemTypeLabel, statDeltaText, truncate } from '../format'
-import { getProfile, mutate } from '../../../core/store'
-import { equipGear, unequipSlot, gearStatDeltas, type StatDelta } from '../../../core/equip'
-import { getClass, getItem, derivedStats, type PlayerProfile, type StatKey } from '../../../core'
+import { getProfile, equipItem, unequipItem } from '../../../core/store'
+import { gearStatDeltas, type StatDelta } from '../../../core/equip'
+import { getClass, getItem, derivedStats, getSkillPool, getSkill, type PlayerProfile, type StatKey } from '../../../core'
 
 const STAT_ORDER: StatKey[] = ['hp', 'atk', 'def', 'mag', 'res', 'spd']
 
@@ -111,10 +111,9 @@ export class EquipPanel extends Panel {
             'Unequip',
             () => {
               try {
-                mutate((p) => {
-                  unequipSlot(p, charId, slot)
-                })
-                this.message = null
+                const result = unequipItem(charId, slot)
+                this.message = result.ok ? null : (result.error ?? 'Could not unequip.')
+                if (!result.ok) this.refresh()
               } catch (err) {
                 this.message = (err as Error).message
                 this.refresh()
@@ -133,6 +132,22 @@ export class EquipPanel extends Panel {
         .map((k) => `${k.toUpperCase()} ${stats[k as keyof typeof stats]}`)
         .join('  ')
       uiText(this.scene, centerX, sy + 2, statLine, { size: 'xs', color: THEME.colors.textMuted, wordWrap: centerW }, content)
+
+      let ky = sy + 22
+      uiText(this.scene, centerX, ky, 'SKILLS', { size: 'xs', color: THEME.colors.accentBlue }, content)
+      ky += 16
+      for (const entry of getSkillPool(c)) {
+        uiText(this.scene, centerX, ky, getSkill(entry.skillId).name, { size: 'xs', color: THEME.colors.text }, content)
+        const tag = entry.source === 'native' ? 'native' : entry.source === 'learned' ? 'learned' : 'gear'
+        const tagColor =
+          entry.source === 'gear'
+            ? THEME.colors.warn
+            : entry.source === 'learned'
+              ? THEME.colors.good
+              : THEME.colors.textDim
+        makeBadge(this.scene, centerX + 150, ky - 3, tag, tagColor, {}, content)
+        ky += 18
+      }
     } else {
       uiText(
         this.scene,
@@ -210,8 +225,9 @@ export class EquipPanel extends Panel {
             return
           }
           try {
-            mutate((p) => equipGear(p, this.selected!, g.id))
-            this.message = null
+            const result = equipItem(this.selected!, g.id)
+            this.message = result.ok ? null : (result.error ?? 'Could not equip.')
+            if (!result.ok) this.refresh()
           } catch (err) {
             this.message = (err as Error).message
             this.refresh()

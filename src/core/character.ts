@@ -57,10 +57,26 @@ export function baseStatsAtLevel(classDef: ClassDef, level: number): StatBlock {
   }
 }
 
-/** Full derived stats: class base + level growth + equipped gear bonuses. */
-export function derivedStats(c: Character): StatBlock {
+/**
+ * The character's permanent base stats (class base + level growth + item-granted
+ * stat-shot bonuses), before any equipped-gear bonuses. Used for stat-shot
+ * previews and as the basis for `derivedStats`.
+ */
+export function baseStatsFor(c: Character): StatBlock {
   const classDef = getClass(c.classId)
   const stats = baseStatsAtLevel(classDef, c.level)
+  const bonus = c.statBonus
+  if (bonus) {
+    for (const key of ['hp', 'atk', 'def', 'mag', 'res', 'spd'] as const) {
+      stats[key] += bonus[key] ?? 0
+    }
+  }
+  return stats
+}
+
+/** Full derived stats: class base + level growth + item bonuses + equipped gear bonuses. */
+export function derivedStats(c: Character): StatBlock {
+  const stats = baseStatsFor(c)
   for (const slot of ['weapon', 'armor'] as const) {
     const gear = c.gear[slot]
     if (!gear) continue

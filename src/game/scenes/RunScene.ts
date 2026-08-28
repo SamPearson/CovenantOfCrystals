@@ -399,7 +399,7 @@ export class RunScene extends Phaser.Scene {
     }
     for (const entry of usable) {
       const item = getItem(entry.itemId)
-      const skill = item.skill ? getSkill(item.skill) : null
+      const skill = item.grantsSkill ? getSkill(item.grantsSkill) : null
       uiText(this, 24, y, `${item.name}  \u00d7${entry.count}`, { size: 'sm', color: THEME.colors.text }, panel)
       let bx = 24
       for (const member of members) {
