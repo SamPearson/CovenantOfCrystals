@@ -27,6 +27,8 @@ function makeBattle(actors: BattleActor[]): BattleState {
     queue: [],
     turnTime: 0,
     turnCount: 0,
+    pendingEvents: [],
+    reactionQueue: [],
     log: [],
     status: 'ongoing',
     over: false,

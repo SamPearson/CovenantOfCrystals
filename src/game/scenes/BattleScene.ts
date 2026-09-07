@@ -17,11 +17,14 @@ import { uiText, makePanel, makeSubpanel, makeButton, makeBadge, makeScrollRegio
 import type { Button, ScrollRegion } from '../ui/widgets'
 import { STONE_BG_KEY, createStoneTextures } from '../ui/textures'
 import { truncate } from '../ui/format'
-import { initStore, getProfile, mutate } from '../../core/store'
+import { initStore, getProfile, mutate, getScript } from '../../core/store'
 import { removeItem } from '../../core/inventory'
 import { createBattle, performAction, chooseEnemyAction, choosePartyAction, getBattleResult } from '../../core/combat/battle'
 import { defaultPresetFor } from '../../core/data/ai-presets'
 import { shouldStopBeforeAdvance } from '../../core/runs/autobattle'
+import { chooseScriptedAction, buildScriptContext } from '../../core/scripting/interpreter'
+import { BUILT_IN_DPS, BUILT_IN_HEALER } from '../../core/data/scripts'
+import type { CharacterScript } from '../../core/scripting/types'
 import type { PlayerAiPresetId, RunNodeType } from '../../core/types'
 import { peekNext, timeToNextTurn, compareEntries } from '../../core/combat/timeline'
 import { createRng } from '../../core/rng/rng'
@@ -163,11 +166,18 @@ export class BattleScene extends Phaser.Scene {
     this.rng = createRng(this.seed)
     const squad = data?.squad ?? scriptedSquad()
     this.battle = createBattle(party, squad, this.seed)
+    // M6 — activate the reaction event bus for both AUTO and Manual turns.
+    this.battle.reactionResolver = (characterId) => this.resolveReactionScript(characterId)
     for (const actor of Object.values(this.battle.actors)) {
       if (actor.side !== 'player') continue
       const ch = getProfile().characters[actor.id]
       this.mode.set(actor.id, ch?.autobattle ?? 'manual')
     }
+    // M7 — seed every player actor with the party's usable consumable pool
+    // (potions + scrolls). The shared pool is mirrored onto each actor so
+    // scripted rules with `source: 'items'` can pick them; spending an item
+    // removes it from the shared profile and all player actors' lists.
+    this.seedBattleItems()
     this.seedLabel.setText(`Seed ${this.seed}`)
     this.pump()
   }
@@ -274,8 +284,7 @@ export class BattleScene extends Phaser.Scene {
       if (m && m !== 'manual' && actor && !actor.ko) {
         this.busy = true
         this.render()
-        this.actionPrompt.setText(`${actor.name} (auto ${m})…`)
-        const preset = m
+        this.actionPrompt.setText(`${actor.name} (script)…`)
         this.pendingTask?.cancel()
         this.pendingTask = this.ticker.schedule(AUTO_DELAY, () => {
           if (!this.scene.isActive('BattleScene')) return
@@ -286,7 +295,10 @@ export class BattleScene extends Phaser.Scene {
             this.pump()
             return
           }
-          this.dispatch(choosePartyAction(this.battle, next.actorId, preset, this.rng))
+          const script = this.resolveAutoScript(next.actorId)
+          const action = chooseScriptedAction(script, buildScriptContext(this.battle, next.actorId), this.rng)
+          const fallback = this.mode.get(next.actorId)
+          this.dispatch(action ?? choosePartyAction(this.battle, next.actorId, fallback === 'manual' ? 'dps' : (fallback ?? 'dps'), this.rng))
         })
       } else {
         this.busy = false
@@ -299,9 +311,36 @@ export class BattleScene extends Phaser.Scene {
   private dispatch(action: BattleAction): void {
     if (!this.currentActorId || this.battle.over) return
     const snap = snapshotVitals(this.battle)
-    const consumed = action.kind === 'item' && action.itemId ? action.itemId : undefined
+    // M7 — snapshot player actor items before the action resolves so we can
+    // detect turn-action + reaction item consumption in one pass.
+    const itemsBefore = Object.fromEntries(
+      Object.values(this.battle.actors)
+        .filter((a) => a.side === 'player' && a.items)
+        .map((a) => [a.id, a.items!.slice()]),
+    )
     performAction(this.battle, this.currentActorId, action, this.rng)
-    if (consumed) mutate((p) => removeItem(p, consumed, 1))
+    // M7 — consume spent items from the shared profile and all player actors.
+    const consumed = new Map<string, number>()
+    for (const [id, before] of Object.entries(itemsBefore)) {
+      const after = this.battle.actors[id]?.items ?? []
+      for (const itemId of before) {
+        if (!after.includes(itemId)) consumed.set(itemId, (consumed.get(itemId) ?? 0) + 1)
+      }
+    }
+    if (consumed.size > 0) {
+      mutate((p) => {
+        for (const [itemId, n] of consumed) removeItem(p, itemId, n)
+      })
+      for (const [itemId, n] of consumed) {
+        for (const actor of Object.values(this.battle.actors)) {
+          if (actor.side !== 'player' || !actor.items) continue
+          for (let i = 0; i < n; i++) {
+            const idx = actor.items.indexOf(itemId)
+            if (idx !== -1) actor.items.splice(idx, 1)
+          }
+        }
+      }
+    }
     const deltas = diffVitals(snap, this.battle)
     this.currentActorId = null
     this.render()
@@ -336,6 +375,33 @@ export class BattleScene extends Phaser.Scene {
       { width: 120, height: 32 },
       this.root,
     )
+  }
+
+  /**
+   * M6 — resolves the script driving an AUTO turn. A library script assigned
+   * to the character wins; otherwise the built-in matching the character's
+   * autobattle preset (dps default) stands in, so preset-equivalence holds.
+   */
+  private resolveAutoScript(actorId: string): CharacterScript {
+    const c = getProfile().characters[actorId]
+    const lib = c?.scriptId ? getScript(c.scriptId) : undefined
+    if (lib) return lib
+    const preset = this.mode.get(actorId) ?? c?.autobattle ?? 'dps'
+    return preset === 'healer' ? BUILT_IN_HEALER : BUILT_IN_DPS
+  }
+
+  /**
+   * M6 — resolves the reaction script for any player character (both DPS and
+   * Manual modes). Same precedence as AUTO turns: library script, then preset
+   * built-in. Returns undefined for enemies / unknown actors (no reactions).
+   */
+  private resolveReactionScript(actorId: string): CharacterScript | undefined {
+    const c = getProfile().characters[actorId]
+    if (!c) return undefined
+    const lib = c.scriptId ? getScript(c.scriptId) : undefined
+    if (lib) return lib
+    const preset = this.mode.get(actorId) ?? c.autobattle ?? 'dps'
+    return preset === 'healer' ? BUILT_IN_HEALER : BUILT_IN_DPS
   }
 
   /** Flip a single character between its autobattle preset and Manual (A10). */
@@ -897,6 +963,22 @@ export class BattleScene extends Phaser.Scene {
     if (this.visibilityHandler) {
       document.removeEventListener('visibilitychange', this.visibilityHandler)
       this.visibilityHandler = undefined
+    }
+  }
+
+  /** M7 — snapshot the party's usable consumables (potions + scrolls) onto every player actor. */
+  private seedBattleItems(): void {
+    const profile = getProfile()
+    const pool: string[] = []
+    for (const entry of profile.inventory.items) {
+      if (entry.count <= 0) continue
+      const item = getItem(entry.itemId)
+      if (!item.use && !item.castSkill) continue
+      for (let i = 0; i < entry.count; i++) pool.push(entry.itemId)
+    }
+    if (pool.length === 0) return
+    for (const actor of Object.values(this.battle.actors)) {
+      if (actor.side === 'player') actor.items = pool.slice()
     }
   }
 

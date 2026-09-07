@@ -119,9 +119,16 @@ Phase 4 (autobattle & idle) is in progress. Milestones from
   characters**; the per-character AI script (`Off`/`DPS`/`Healer`) is selected
   in the Party menu and stored via `setAutobattle`. Full suite 408/408 green,
   `tsc --noEmit` clean.
+- **M3 (speed controls)** and **M4 (auto-advance + stop dialog)** shipped;
+  then scripting superseded M1/M2's preset AI. **M5 (script DSL v2, secured in
+  `phase_4.5.2-scripting.md`) landed end-to-end:** DSL types/interpreter/
+  conditions/targets/selectors, reaction event bus in both AUTO and MANUAL,
+  passive passives, script editor + Automation Window UI, dry-run preview —
+  **553/553 green**. **M6 (BattleScene AUTO drives library scripts +
+  reactions)** — **557/557 green**. **M7 (battle item wiring — `source:
+  'items'` pickable and single-use items consumed)** closed the sprint:
+  **559/559 green**, `tsc --noEmit` clean, build green. See
+  `workspace/phase_4.5.2-scripting.md` for the full sprint record.
 
-Remaining Phase 4 milestones: M3 (speed controls), M4 (auto-advance + stop
-dialog), M5 (headless ticker & leave/return), M6 (script DSL v2, later).
-
-Full suite passes (`npm run test`, 408 tests) and `tsc --noEmit` is clean.
+Full suite passes (`npm run test`, 559 tests) and `tsc --noEmit` is clean.
 

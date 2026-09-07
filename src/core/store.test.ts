@@ -17,8 +17,17 @@ import {
   applyTome,
   equipItem,
   unequipItem,
+  getScripts,
+  getScript,
+  createScript,
+  updateScript,
+  deleteScript,
+  duplicateScript,
+  assignScript,
 } from './store'
 import { createCharacter } from './character'
+import { SCRIPT_LIBRARY_CAP } from './scripting/types'
+import type { CharacterScript, ScriptBlock, ScriptLine } from './scripting/types'
 import { createGearInstance, addItem } from './inventory'
 import { equipGear } from './equip'
 import { addToParty } from './party'
@@ -407,5 +416,139 @@ describe('setAutobattle (Phase 4 M1)', () => {
 
   it('throws for an unknown character', () => {
     expect(() => setAutobattle('ghost', 'dps')).toThrow(/Character not found/)
+  })
+})
+
+function defenseLine(): ScriptLine {
+  return {
+    id: 'l1',
+    target: { kind: 'self' },
+    action: { source: 'skills', filters: [{ kind: 'byId', skillId: 'defend' }] },
+  }
+}
+
+function makeScript(id: string, overrides: Partial<CharacterScript> = {}): CharacterScript {
+  return {
+    id,
+    name: `Script ${id}`,
+    rootBlock: { id: 'root', depth: 0, lines: [defenseLine()], nested: [] },
+    reactions: [],
+    createdAt: 0,
+    updatedAt: 0,
+    ...overrides,
+  }
+}
+
+describe('scripting library (Phase 4.5.2, M3)', () => {
+  it('creates, reads, and persists a script across reload', () => {
+    createScript(makeScript('lib.alpha'))
+    expect(getScript('lib.alpha')?.id).toBe('lib.alpha')
+    expect(getScripts().some((s) => s.id === 'lib.alpha')).toBe(true)
+
+    resetStore()
+    initStore()
+    expect(getScript('lib.alpha')?.name).toBe('Script lib.alpha')
+  })
+
+  it('refuses a duplicate script id', () => {
+    createScript(makeScript('lib.alpha'))
+    expect(() => createScript(makeScript('lib.alpha'))).toThrow(/already exists/)
+  })
+
+  it('refuses a built-in script', () => {
+    expect(() => createScript(makeScript('builtin.x', { builtIn: true }))).toThrow(/built-in/)
+  })
+
+  it('refuses an over-deep script through validateScriptDepth', () => {
+    const rootBlock = {
+      id: 'root',
+      depth: 0,
+      lines: [],
+      nested: [
+        { id: 'n1', depth: 1, lines: [], nested: [{ id: 'n2', depth: 2, lines: [], nested: [{ id: 'n3', depth: 3, lines: [], nested: [] }] }] },
+      ],
+    }
+    const bad = makeScript('lib.deep', { rootBlock: rootBlock as unknown as ScriptBlock })
+    expect(() => createScript(bad)).toThrow(/nesting/)
+  })
+
+  it('updates an existing player script and persists', () => {
+    createScript(makeScript('lib.alpha'))
+    updateScript({ ...makeScript('lib.alpha'), name: 'Renamed' })
+    expect(getScript('lib.alpha')?.name).toBe('Renamed')
+
+    resetStore()
+    initStore()
+    expect(getScript('lib.alpha')?.name).toBe('Renamed')
+  })
+
+  it('refuses to update a built-in script', () => {
+    const builtin = getProfile().scriptLibrary.find((s) => s.builtIn)!
+    expect(() => updateScript({ ...builtin, name: 'Hacked' })).toThrow()
+  })
+
+  it('deletes a script, clears its assignments, and persists', () => {
+    const party = seedParty(1)
+    createScript(makeScript('lib.alpha'))
+    assignScript(party[0], 'lib.alpha')
+    expect(getProfile().characters[party[0]]?.scriptId).toBe('lib.alpha')
+
+    deleteScript('lib.alpha')
+    expect(getScript('lib.alpha')).toBeUndefined()
+    expect(getProfile().characters[party[0]]?.scriptId).toBeUndefined()
+
+    resetStore()
+    initStore()
+    expect(getScript('lib.alpha')).toBeUndefined()
+  })
+
+  it('refuses to delete a built-in script', () => {
+    const builtin = getProfile().scriptLibrary.find((s) => s.builtIn)!
+    expect(() => deleteScript(builtin.id)).toThrow(/built-in/)
+  })
+
+  it('duplicates a built-in into an editable copy', () => {
+    const builtin = getProfile().scriptLibrary.find((s) => s.builtIn)!
+    const copy = duplicateScript(builtin.id)
+    expect(copy.id).not.toBe(builtin.id)
+    expect(copy.builtIn).toBe(false)
+    expect(copy.name).toContain('(copy)')
+    expect(getScript(copy.id)?.name).toBe(copy.name)
+
+    expect(() => updateScript({ ...copy, name: 'My Custom' })).not.toThrow()
+    expect(getScript(copy.id)?.name).toBe('My Custom')
+  })
+
+  it('assigns a script to a character that survives reload', () => {
+    const party = seedParty(1)
+    createScript(makeScript('lib.alpha'))
+    assignScript(party[0], 'lib.alpha')
+
+    resetStore()
+    initStore()
+    expect(getProfile().characters[party[0]]?.scriptId).toBe('lib.alpha')
+  })
+
+  it('throws for an unknown script on assign', () => {
+    const party = seedParty(1)
+    expect(() => assignScript(party[0], 'ghost')).toThrow(/not found/)
+  })
+
+  it('enforces the script library cap on create', () => {
+    const seeded = getScripts().length
+    for (let i = 0; i < SCRIPT_LIBRARY_CAP - seeded; i++) {
+      createScript(makeScript(`lib.c${i}`))
+    }
+    expect(getScripts().length).toBe(SCRIPT_LIBRARY_CAP)
+    expect(() => createScript(makeScript('lib.overflow'))).toThrow(/full/)
+  })
+
+  it('enforces the script library cap on duplicate', () => {
+    const seeded = getScripts().length
+    const builtin = getProfile().scriptLibrary.find((s) => s.builtIn)!
+    for (let i = 0; i < SCRIPT_LIBRARY_CAP - seeded; i++) {
+      duplicateScript(builtin.id)
+    }
+    expect(() => duplicateScript(builtin.id)).toThrow(/full/)
   })
 })

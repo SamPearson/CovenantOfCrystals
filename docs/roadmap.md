@@ -78,12 +78,19 @@ working document — update it as decisions land.
   Docs: `runs-and-gauntlet.md`. Full suite 373/373 green.
 
 ### Phase 4 — Autobattle & idle
-- [ ] Per-character AI scripts (presets) using the same engine
+- [~] Per-character AI scripts using the same engine, superseded by player-authored
+      scripts — **Plan:** `workspace/phase_4.5.2-scripting.md` (sprint 2 of the
+      Items → Scripting → Classes group; also the M6 "script DSL v2" milestone).
+      **In progress:** sprint **M1 (DSL + turn interpreter), M2 (passives +
+      event bus + reactions), M3 (store/persistence/migration), M4 (Automation
+      Window UI), and M5 (dry-run preview) landed**, suite + build green; M6
+      (BattleScene AUTO integration) next.
 - [ ] Speed controls (1×/2×/4×, skip animations, auto-advance)
 - [ ] Checkpointing + leave/return flow (hidden tab keeps running)
 - **Exit criteria:** a run can be left mid-way (tab hidden, still running) and
-  resumed exactly where it was; autobattle wins/loses using the same rules as
-  manual. Docs: `autobattle-and-idle.md`.
+  resumed exactly where it was; autobattle wins/loses using scripted behavior
+  (player-authored scripts now live, decisions #55–#72). Docs:
+  `autobattle-and-idle.md`.
 
 ### Phase 5 — Economy & balance
 - [ ] Balance constants data pass (damage curves, difficulty curve, drop
@@ -100,7 +107,7 @@ working document — update it as decisions land.
 ### Phase 6 — Polish & backend
 - [ ] Art/audio pass, animations, battle log polish
 - [ ] Real API backend replacing the mock (login + cloud save)
-- [ ] Optional: player-authored autobattle script editor, run record stats,
+- [ ] Optional: shared-script import/export, run record stats,
   class-change system
 - **Exit criteria:** playable vertical slice for others; real API live.
 
@@ -140,7 +147,7 @@ working document — update it as decisions land.
 | 21 | Accessory slot? | **Not in v1** (`party-and-equipment.md` §4) |
 | 22 | Class-change system? | **No** — classes fixed and simple (`party-and-equipment.md` §2) |
 | 23 | Skill loadout size? | **4**, as a data parameter (`ClassDef.loadoutSize`) (`party-and-equipment.md` §5) |
-| 24 | Player-authored autobattle scripts? | **Not yet** — curated presets only (`autobattle-and-idle.md` §2) |
+| 24 | Player-authored autobattle scripts? | **Not yet** — curated presets only at the time (`autobattle-and-idle.md` §2) — **superseded by #55** (v1 feature in the scripting sprint) |
 | 25 | Premium currency? | **No** — gold only (`metagame.md` §5) |
 | 26 | Data source? | **Hardcoded JSON blobs → mock API → real API** (`architecture.md` §6) |
 | 27 | How does `Character.gear` reference equipment? | **Unique gear instances** (`GearInstance`), matching inventory + per-instance durability (`data-model.md` §2) |
@@ -186,6 +193,37 @@ working document — update it as decisions land.
 | 52 | Rotating stock size? | Always potions (Health / Greater Health / Mana / Greater Mana) + **4 gear + 3 skill items** per refresh (`phase-3-run-loop-plan.md` §3) |
 | 53 | Run lengths offered? | **Starter subset 3 / 5 / 10** at run start (1/15/20 later with difficulty bands) (`phase-3-run-loop-plan.md` §3) |
 | 54 | Selling? | **Sell gear for gold** from the shop tab (unwanted drops become a second gold source); consumables are not sellable in P3 (`phase-3-run-loop-plan.md` §3) |
+
+### Locked (round 8 — character scripting)
+
+| # | Question | Decision |
+| --- | --- | --- |
+| 55 | Player-authored autobattle scripts? | **Yes — v1 feature** — the scripting sprint ships a full player-owned script library + Automation Window UI (supersedes #24) (`phase_4.5.2-scripting.md`, `character-scripting.md`) |
+| 56 | Script structure? | **Rules + blocks + reactions sheet.** A rule = trigger + target + action selector. Blocks (a set of rules with an overall trigger) nest to **depth 3**. Reactions respond to battle events, always-on (see #60). |
+| 57 | Rule priority / execution order? | **Priority = rule position**, numbered `01..N`. Lowest-first; first-true wins; a winning rule that resolves empty falls through; nothing matched → the fallback runs. |
+| 58 | Fallback when no rule matches? | **User-customizable, un-removable final rule** (trigger always true; target/action configurable). Default: attack the lowest-HP enemy. Supersedes the earlier "no match → Defend". |
+| 59 | Multiple matching actions? | **Chosen at random** among the matches (via the seeded RNG; dry-run stays deterministic). Supersedes "first matching skill wins". |
+| 60 | Reactionary skill kind? | **No distinct reactionary skill type.** Reactions are authored rules on a script's reactions sheet, fired off the **battle event bus** in AUTO *and* MANUAL; the AUTO/MANUAL toggle governs turn actions only. |
+| 61 | Reaction balance restriction? | **`reactionTo?: EventPattern[]` on `SkillDef` and `ItemDef`** — the gates a skill/item may react in; absent/empty = never usable as a reaction. The gate is the designer's balance lever, conditions within a gate are the player's. Enforced in the editor, the store, and the interpreter. |
+| 62 | Reaction event vocabulary (v1)? | `attacked`, `evaded`, `ally-kod`, `status-applied`, `status-removed`, `enemy-casts`, `turn-start`, `turn-end`. `EventPattern = { kind; source?: 'self'\|'ally'\|'enemy'; target?: ... }`, extensible. |
+| 63 | Event-relative targeting? | Condition scopes and target kinds gain `attacker`, `trigger-target`, `previous-trigger-target` (valid inside reactions). |
+| 64 | Expanded condition vocabulary? | `stat-compare` (flat or % of base — "Enemy Defense < 30"), `weak-to` (element), `enemy-rank` ("is Elite OR Boss"); plus the `highest-threat-enemy` target kind. |
+| 65 | Script library capacity? | **Global, developer-configurable `SCRIPT_LIBRARY_CAP`** (default 50), shown in the UI as `N / 50 scripts`; `createScript` refuses at the cap. |
+| 66 | Script metadata? | `name`, optional `description` and `art` glyph; the editor shows an **ACTIVE** badge when the open script is the selected character's assigned script. |
+
+### Locked (round 9 — scripting build M1/M2)
+
+Decisions made while implementing the scripting sprint's first two milestones.
+All logged in `phase_4.5.2-scripting.md` as they land.
+
+| # | Question | Decision |
+| --- | --- | --- |
+| 67 | Where does the fallback rule live in the data model? | **`CharacterScript.fallback?: ScriptLine`** — evaluated last, after the root block's rules; absent → default `attack lowest-hp-enemy`. The earlier type list (§6) implied the fallback but didn't say where it lives. |
+| 68 | `enemy-rank` source data? | v1: **boss = `EnemyDef.isBoss`, everything else `normal`**. `elite` currently matches *nothing* — no enemy carries an elite flag yet. The `enemy-rank` condition is data-ready for when elites land. |
+| 69 | `highest-threat-enemy` v1 definition? | **The living enemy with the highest ATK.** No threat/aggro system exists yet; Phase 5 may introduce a real threat value (then this target re-derives from it). |
+| 70 | Passive skill effect shape? | **Percentage multipliers via the existing status machinery** (e.g. `statBuff def ×1.2`). The status system has no flat bonuses, so "Toughness +5 DEF" ships as `×1.2`; whole-battle duration is authored as `duration: 999` on the seed effect. |
+| 71 | Reaction execution model? | Events accumulate on **`BattleState.pendingEvents`**, drained inside `performAction` after the acting turn resolves. `delay: 0` reactions resolve inline (no CTB disturbance); `delay > 0` schedules a **`PendingReaction`** on `BattleState.reactionQueue` at `turnTime + timeToNextTurn(spd, delay)`. `BattleState.reactionResolver?` makes the bus **dormant when absent** — the run layer installs it (M6), tests install it directly. A global `REACTION_EVENT_BUDGET` (200) contains reaction storms with a log line. |
+| 72 | Antidote item now? | **Deferred.** The engine only has `healHp`/`healMp` `use`-effects (no cleanse use-effect yet), so the seed Antidote (`reactionTo: status-applied on ally`) waits for a cleanse use-effect. Potions carry `reactionTo: [attacked, status-applied]` today. |
 
 ### Still open
 

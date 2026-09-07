@@ -140,8 +140,56 @@ export const DEFAULT_THEME_ID = 'earthstone'
 
 /**
  * Built-in themes — canonical presets. Structural layout (fonts/spacing/dims)
- * is defined here once; user profiles only override colors + rarity.
+ * is shared by every preset and defined here once; user profiles only
+ * override colors + rarity.
  */
+const STRUCTURE: Omit<Theme, 'colors' | 'rarity'> = {
+  fonts: {
+    display: "'IM Fell English', Georgia, 'Times New Roman', serif",
+    body: "'EB Garamond', Georgia, 'Times New Roman', serif",
+    size: {
+      xs: 11,
+      sm: 13,
+      md: 15,
+      lg: 18,
+      xl: 26,
+    },
+  },
+
+  spacing: {
+    pad: 12,
+    gap: 8,
+  },
+
+  panel: {
+    alpha: 0.94,
+    borderWidth: 2,
+    radius: 8,
+    inset: 3,
+  },
+
+  button: {
+    width: 150,
+    height: 34,
+    radius: 4,
+  },
+
+  slot: {
+    size: 46,
+    gap: 4,
+    cols: 6,
+    rows: 5,
+  },
+
+  header: {
+    height: 48,
+  },
+
+  tabs: {
+    height: 40,
+  },
+}
+
 export const PRESET_THEMES: Record<string, Theme> = {
   earthstone: {
     colors: {
@@ -177,55 +225,141 @@ export const PRESET_THEMES: Record<string, Theme> = {
       legendary: 0x9a6f1f,
     },
 
-    fonts: {
-      display: "'IM Fell English', Georgia, 'Times New Roman', serif",
-      body: "'EB Garamond', Georgia, 'Times New Roman', serif",
-      size: {
-        xs: 11,
-        sm: 13,
-        md: 15,
-        lg: 18,
-        xl: 26,
-      },
+    ...STRUCTURE,
+  },
+
+  /**
+   * Midnight — cool slate "night watch" palette. All surfaces stay dark, so
+   * text, headings and gold read strongly everywhere; the blue accent keeps
+   * buttons and chips legible with dark label text.
+   */
+  midnight: {
+    colors: {
+      bg: 0x0c1423,
+      bgVignette: 0x060b16,
+      panel: 0x131d2f,
+      face: 0x1a263a,
+      panelAlt: 0x22304a,
+      slotEmpty: 0x293952,
+      border: 0x2c3e5c,
+      borderLight: 0x41587d,
+      accent: 0x57a0ff,
+      accentDark: 0x2c6fd0,
+      accentSoft: 0x243a5e,
+      accentBlue: 0x3f79c4,
+      gold: 0xe8b84a,
+      hover: 0x66aaff,
+      selected: 0x31507f,
+      disabled: 0x1d2739,
+      text: '#e7ecf5',
+      textMuted: '#a9b8cc',
+      textDim: '#71839c',
+      textOnAccent: '#081631',
+      good: '#66d29b',
+      warn: '#f0c355',
+      bad: '#ff7a6e',
     },
 
-    spacing: {
-      pad: 12,
-      gap: 8,
+    rarity: {
+      common: 0x62748c,
+      rare: 0x4f9be6,
+      epic: 0x9a7fe0,
+      legendary: 0xe8b84a,
     },
 
-    panel: {
-      alpha: 0.94,
-      borderWidth: 2,
-      radius: 8,
-      inset: 3,
+    ...STRUCTURE,
+  },
+
+  /**
+   * Obsidian — warm charcoal with an ember accent. A cozy mid-contrast dark
+   * look: every surface is a dark neutral, so gold headings and muted text
+   * never fight a light background.
+   */
+  obsidian: {
+    colors: {
+      bg: 0x110d0b,
+      bgVignette: 0x070504,
+      panel: 0x1a1613,
+      face: 0x241e19,
+      panelAlt: 0x2c2520,
+      slotEmpty: 0x342c25,
+      border: 0x453a30,
+      borderLight: 0x5c4e41,
+      accent: 0xff9f43,
+      accentDark: 0xd97a1f,
+      accentSoft: 0x3b2e1f,
+      accentBlue: 0x7d94c4,
+      gold: 0xe8b84a,
+      hover: 0xffad5e,
+      selected: 0x4a3a2a,
+      disabled: 0x2e2823,
+      text: '#f1eae0',
+      textMuted: '#cbbda8',
+      textDim: '#8d7e69',
+      textOnAccent: '#2c1704',
+      good: '#8fd16a',
+      warn: '#e8c15a',
+      bad: '#ff7d72',
     },
 
-    button: {
-      width: 150,
-      height: 34,
-      radius: 4,
+    rarity: {
+      common: 0x7a7064,
+      rare: 0x6d8fc9,
+      epic: 0x4fa886,
+      legendary: 0xe8b84a,
     },
 
-    slot: {
-      size: 46,
-      gap: 4,
-      cols: 6,
-      rows: 5,
+    ...STRUCTURE,
+  },
+
+  /**
+   * Parchment — light aged-paper palette. The inverse of the darks: everything
+   * is warm and light, with dark ink text and a deep bronze-gold accent used
+   * for headings (readable on the light card surfaces).
+   */
+  parchment: {
+    colors: {
+      bg: 0x968a60,
+      bgVignette: 0x6e6345,
+      panel: 0xe6dfc9,
+      face: 0xf6f1e2,
+      panelAlt: 0xece5d0,
+      slotEmpty: 0xd9d0b4,
+      border: 0xb3a87f,
+      borderLight: 0xc9bf9c,
+      accent: 0x376b43,
+      accentDark: 0x29522f,
+      accentSoft: 0xd7e2cd,
+      accentBlue: 0x4a6fa5,
+      gold: 0x7a5a12,
+      hover: 0x468253,
+      selected: 0xc6d6b5,
+      disabled: 0xcfc8b4,
+      text: '#2b2a20',
+      textMuted: '#57564a',
+      textDim: '#87856d',
+      textOnAccent: '#f8f4e5',
+      good: '#2e7d3a',
+      warn: '#9a6a12',
+      bad: '#b23b30',
     },
 
-    header: {
-      height: 48,
+    rarity: {
+      common: 0x8a8672,
+      rare: 0x3f6ea0,
+      epic: 0x2f8f74,
+      legendary: 0x996a16,
     },
 
-    tabs: {
-      height: 40,
-    },
+    ...STRUCTURE,
   },
 }
 
 const PRESET_NAMES: Record<string, string> = {
   earthstone: 'Earthstone',
+  midnight: 'Midnight',
+  obsidian: 'Obsidian',
+  parchment: 'Parchment',
 }
 
 /** Converts a '#rrggbb' string to a numeric color (Phaser fill/stroke value). */

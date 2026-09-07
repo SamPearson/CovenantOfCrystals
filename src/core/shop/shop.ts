@@ -21,6 +21,20 @@ export const ALWAYS_POTIONS: readonly string[] = [
   'greater_mana_potion',
 ]
 
+/**
+ * Stat-shots are always on sale (alongside potions) so the player can manually
+ * apply base-stat progression in the Apply tab. They stand in for a level-up
+ * path during balance testing and are priced dirt-cheap for that purpose.
+ */
+export const ALWAYS_STAT_SHOTS: readonly string[] = [
+  'shot_hp_5',
+  'shot_atk_1',
+  'shot_def_1',
+  'shot_mag_1',
+  'shot_res_1',
+  'shot_spd_1',
+]
+
 export interface ShopActionResult {
   ok: boolean
   price?: number
@@ -40,7 +54,7 @@ export function generateShopStock(rng: Rng): ShopStock {
   const gear = shuffle(rng, rotatingGearPool()).slice(0, BALANCE.economy.rotatingGear)
   const skills = shuffle(rng, rotatingSkillPool()).slice(0, BALANCE.economy.rotatingSkillItems)
   return {
-    always: [...ALWAYS_POTIONS],
+    always: [...ALWAYS_POTIONS, ...ALWAYS_STAT_SHOTS],
     rotating: {
       gear: gear.map((i) => i.id),
       skills: skills.map((i) => i.id),

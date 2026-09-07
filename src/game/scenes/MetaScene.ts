@@ -4,6 +4,7 @@ import { initThemes, getActiveTheme, themesEqual, subscribeThemes } from '../../
 import { uiText, makeButton, type Button } from '../ui/widgets'
 import { STONE_BG_KEY, createStoneTextures } from '../ui/textures'
 import { showThemeEditor, hideThemeEditor } from '../ui/theme-editor'
+import { hideScriptEditor, isScriptEditorVisible } from '../ui/script-editor-panel'
 import { BoxesPanel } from '../ui/panels/boxes-panel'
 import { PartyPanel } from '../ui/panels/party-panel'
 import { EquipPanel } from '../ui/panels/equip-panel'
@@ -11,12 +12,13 @@ import { InventoryPanel } from '../ui/panels/inventory-panel'
 import { ApplyPanel } from '../ui/panels/apply-panel'
 import { ShopPanel } from '../ui/panels/shop-panel'
 import { RecruitmentPanel } from '../ui/panels/recruitment-panel'
+import { AutomationPanel } from '../ui/panels/automation-panel'
 import type { Panel } from '../ui/panels/panel'
 import { initStore, getProfile, subscribe } from '../../core/store'
 
-type PanelId = 'boxes' | 'party' | 'equip' | 'inventory' | 'apply' | 'shop' | 'recruit' | 'theme'
+type PanelId = 'boxes' | 'party' | 'equip' | 'inventory' | 'apply' | 'shop' | 'recruit' | 'automation' | 'theme'
 
-const TAB_IDS: PanelId[] = ['boxes', 'party', 'equip', 'inventory', 'apply', 'shop', 'recruit', 'theme']
+const TAB_IDS: PanelId[] = ['boxes', 'party', 'equip', 'inventory', 'apply', 'shop', 'recruit', 'automation', 'theme']
 const TAB_LABELS: Record<PanelId, string> = {
   boxes: 'Boxes',
   party: 'Party',
@@ -25,6 +27,7 @@ const TAB_LABELS: Record<PanelId, string> = {
   apply: 'Apply',
   shop: 'Shop',
   recruit: 'Recruit',
+  automation: 'Automation',
   theme: 'Theme',
 }
 
@@ -122,6 +125,7 @@ export class MetaScene extends Phaser.Scene {
       apply: new ApplyPanel(this, contentRect),
       shop: new ShopPanel(this, contentRect),
       recruit: new RecruitmentPanel(this, contentRect),
+      automation: new AutomationPanel(this, contentRect),
     }
 
     this.unsubscribe = subscribe(() => {
@@ -166,6 +170,9 @@ export class MetaScene extends Phaser.Scene {
     }
     if (isTheme) showThemeEditor()
     else hideThemeEditor()
+    // The script editor floats over the canvas like Theme Studio; closing the
+    // Automation tab must dismiss it so it doesn't linger over other tabs.
+    if (isScriptEditorVisible()) hideScriptEditor()
     this.buildTabs(id)
     this.updateHeader()
     if (!isTheme) this.panels[id].refresh()
@@ -185,14 +192,14 @@ export class MetaScene extends Phaser.Scene {
         TAB_LABELS[id],
         () => this.showTab(id),
         {
-          width: 108,
+          width: 96,
           height: THEME.tabs.height - 8,
           color: isActive ? THEME.colors.accent : THEME.colors.accentBlue,
           labelColor: isActive ? THEME.colors.textOnAccent : colorHex(THEME.colors.borderLight),
         },
       )
       this.tabButtons.push(button)
-      x += 116
+      x += 104
     }
   }
 

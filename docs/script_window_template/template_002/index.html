@@ -1,0 +1,869 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Grimoire — Battle Script</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+  <div class="paper-grain"></div>
+
+  <div class="app">
+
+```
+<header class="topbar">
+  <div class="brand-mark">✦</div>
+
+  <div class="brand">
+    <div class="brand-small">THE ARCANUM</div>
+    <div class="brand-title">Battle Script Grimoire</div>
+  </div>
+
+  <div class="top-actions">
+    <button class="ink-button">Duplicate</button>
+    <button class="gold-button">Save Script</button>
+  </div>
+</header>
+
+
+<div class="layout">
+
+  <aside class="library">
+
+    <div class="section-title">
+      <span>Script Library</span>
+      <button class="add-script">+</button>
+    </div>
+
+    <div class="paint-stroke"></div>
+
+    <div class="library-label">KNOWN SCRIPTS</div>
+
+    <button class="script active">
+      <span class="script-art fire">✦</span>
+      <span>
+        <strong>Reactive Mage</strong>
+        <small>7 rules · 1 block</small>
+      </span>
+    </button>
+
+    <button class="script">
+      <span class="script-art storm">✧</span>
+      <span>
+        <strong>Aggressive Mage</strong>
+        <small>5 rules</small>
+      </span>
+    </button>
+
+    <button class="script">
+      <span class="script-art leaf">❧</span>
+      <span>
+        <strong>Support Cleric</strong>
+        <small>8 rules · 2 blocks</small>
+      </span>
+    </button>
+
+    <button class="script">
+      <span class="script-art skull">☠</span>
+      <span>
+        <strong>Boss Behavior</strong>
+        <small>12 rules · 3 blocks</small>
+      </span>
+    </button>
+
+    <div class="library-rule"></div>
+
+    <button class="new-script">
+      <span>✧</span>
+      Inscribe New Script
+    </button>
+
+    <div class="library-footer">
+      <div class="ink-seal">✦</div>
+      <div>
+        <small>GRIMOIRE CAPACITY</small>
+        <span>4 / 50 scripts</span>
+      </div>
+    </div>
+
+  </aside>
+
+
+  <main class="main">
+
+    <div class="heading">
+
+      <div>
+        <div class="breadcrumb">
+          ARCANUM / BATTLE TACTICS
+        </div>
+
+        <div class="title-row">
+          <input
+            class="script-title"
+            value="Reactive Mage"
+            aria-label="Script name"
+          />
+          <span class="status">ACTIVE</span>
+        </div>
+
+        <p>
+          Defensive tactics for a battle mage who reacts to
+          the changing battlefield.
+        </p>
+      </div>
+
+      <div class="stats">
+        <div>
+          <strong>07</strong>
+          <span>RULES</span>
+        </div>
+        <div>
+          <strong>01</strong>
+          <span>BLOCK</span>
+        </div>
+      </div>
+
+    </div>
+
+
+    <div class="toolbar">
+
+      <div class="evaluation">
+        <span class="order-symbol">↕</span>
+        <div>
+          <strong>Execution Order</strong>
+          <small>Rules resolve from top to bottom.</small>
+        </div>
+      </div>
+
+      <div class="toolbar-actions">
+        <button class="ink-button" id="collapseAll">
+          Collapse All
+        </button>
+
+        <button class="ink-button" id="expandAll">
+          Expand All
+        </button>
+
+        <button class="gold-button" id="addRule">
+          + Add Rule
+        </button>
+      </div>
+
+    </div>
+
+
+    <section class="rules">
+
+
+      <!-- REACTIVE BLOCK -->
+
+      <article class="magic-block" data-block>
+
+        <div class="block-header">
+
+          <button
+            class="block-toggle"
+            data-collapse-block
+          >⌄</button>
+
+          <div class="block-art">
+            <span>✦</span>
+          </div>
+
+          <div class="block-title">
+            <small>REACTIONARY SCRIPT BLOCK</small>
+            <strong>Reactive Skills</strong>
+          </div>
+
+          <div class="block-trigger">
+            <span>WHEN</span>
+            <strong>Evading an attack</strong>
+          </div>
+
+          <button class="more">•••</button>
+
+        </div>
+
+        <div class="block-body">
+
+          <article
+            class="rule-card compact"
+            data-rule
+            data-expanded="false"
+          >
+
+            <div class="rule-summary" data-toggle-rule>
+
+              <div class="priority reactive">R</div>
+
+              <div class="rule-copy">
+                <strong>Steal from attacker</strong>
+                <small>
+                  Use <em>Steal</em> against <em>Attacker</em>
+                </small>
+              </div>
+
+              <div class="action-badge reaction">
+                <span>✦</span>
+                Steal
+              </div>
+
+              <button class="chevron">›</button>
+
+            </div>
+
+            <div class="rule-editor">
+
+              <div class="field">
+                <label>TARGET</label>
+                <select>
+                  <option>Attacker</option>
+                  <option>Self</option>
+                  <option>Trigger Target</option>
+                  <option>Previous Trigger Target</option>
+                </select>
+              </div>
+
+              <div class="field">
+                <label>ACTION</label>
+                <select>
+                  <option>Steal</option>
+                </select>
+              </div>
+
+            </div>
+
+          </article>
+
+        </div>
+
+        <div class="block-footer">
+          <button>+ Add Rule</button>
+          <button>+ Add Nested Block</button>
+        </div>
+
+      </article>
+
+
+      <!-- RULE 01 -->
+
+      <article class="rule-card" data-rule data-expanded="true">
+
+        <div class="rule-summary" data-toggle-rule>
+
+          <div class="priority">01</div>
+
+          <div class="rule-copy">
+            <strong>Protect vulnerable ally</strong>
+            <small>
+              Ally with low Defense and less than 50% HP
+            </small>
+          </div>
+
+          <div class="action-badge support">
+            <span>✦</span>
+            Shield
+          </div>
+
+          <button class="chevron">⌃</button>
+
+        </div>
+
+
+        <div class="rule-editor">
+
+          <div class="editor-heading">
+            <span>TRIGGER CONDITIONS</span>
+            <button>+ Add Condition</button>
+          </div>
+
+          <div class="conditions">
+
+            <div class="condition">
+
+              <i>I</i>
+
+              <select>
+                <option>Party Member</option>
+                <option>Self</option>
+                <option>Enemy</option>
+              </select>
+
+              <select>
+                <option>Defense</option>
+                <option>HP</option>
+                <option>MP</option>
+                <option>Status</option>
+              </select>
+
+              <select class="operator">
+                <option>&lt;</option>
+                <option>&gt;</option>
+                <option>=</option>
+              </select>
+
+              <input value="30" />
+
+              <span>DEF</span>
+
+              <button class="remove">×</button>
+
+            </div>
+
+
+            <div class="and">AND</div>
+
+
+            <div class="condition">
+
+              <i>II</i>
+
+              <select class="context">
+                <option>Previous Trigger Target</option>
+                <option>Trigger Target</option>
+                <option>Self</option>
+              </select>
+
+              <select>
+                <option>Status</option>
+                <option>HP</option>
+                <option>Defense</option>
+              </select>
+
+              <select>
+                <option>doesn't have</option>
+                <option>has</option>
+              </select>
+
+              <select>
+                <option>Shield</option>
+                <option>Poison</option>
+                <option>Haste</option>
+              </select>
+
+              <button class="remove">×</button>
+
+            </div>
+
+
+            <div class="and">AND</div>
+
+
+            <div class="condition">
+
+              <i>III</i>
+
+              <select class="context">
+                <option>Previous Trigger Target</option>
+                <option>Trigger Target</option>
+                <option>Self</option>
+              </select>
+
+              <select>
+                <option>HP</option>
+                <option>MP</option>
+                <option>Defense</option>
+              </select>
+
+              <select class="operator">
+                <option>&lt;</option>
+                <option>&gt;</option>
+                <option>=</option>
+              </select>
+
+              <input value="50" />
+
+              <span>%</span>
+
+              <button class="remove">×</button>
+
+            </div>
+
+          </div>
+
+
+          <div class="editor-section">
+
+            <div class="editor-heading">
+              <span>TARGET</span>
+            </div>
+
+            <div class="target-card">
+
+              <div class="target-icon">◎</div>
+
+              <div>
+                <small>TARGET SOURCE</small>
+                <strong>Previous Trigger Target</strong>
+              </div>
+
+              <button>Change</button>
+
+            </div>
+
+          </div>
+
+
+          <div class="editor-section">
+
+            <div class="editor-heading">
+              <span>ACTION</span>
+            </div>
+
+            <div class="action-row">
+
+              <select>
+                <option>Shield</option>
+                <option>Cure</option>
+                <option>Any Support Skill</option>
+              </select>
+
+              <small>
+                ✦ Selects from matching actions
+              </small>
+
+            </div>
+
+          </div>
+
+        </div>
+
+      </article>
+
+
+      <!-- RULE 02 -->
+
+      <article class="rule-card" data-rule data-expanded="false">
+
+        <div class="rule-summary" data-toggle-rule>
+
+          <div class="priority">02</div>
+
+          <div class="rule-copy">
+            <strong>Comet elite enemies</strong>
+            <small>
+              Elite or Boss · target HP &gt; 50% · Self MP &gt; 50%
+            </small>
+          </div>
+
+          <div class="action-badge magic">
+            <span>✦</span>
+            Comet
+          </div>
+
+          <button class="chevron">›</button>
+
+        </div>
+
+        <div class="rule-editor">
+
+          <div class="editor-heading">
+            <span>TRIGGER CONDITIONS</span>
+          </div>
+
+          <div class="condition-preview">
+            <span>Enemy</span> is
+            <b>Elite OR Boss</b>
+            <em>AND</em>
+            <span>Previous Trigger Target</span> HP &gt;
+            <b>50%</b>
+            <em>AND</em>
+            <span>Self</span> MP &gt;
+            <b>50%</b>
+          </div>
+
+          <div class="editor-section">
+            <div class="editor-heading">
+              <span>TARGET</span>
+            </div>
+
+            <div class="target-card">
+              <div class="target-icon">◎</div>
+              <div>
+                <small>TARGET SOURCE</small>
+                <strong>Previous Trigger Target</strong>
+              </div>
+              <button>Change</button>
+            </div>
+          </div>
+
+          <div class="editor-section">
+            <div class="editor-heading">
+              <span>ACTION</span>
+            </div>
+
+            <select>
+              <option>Comet</option>
+            </select>
+          </div>
+
+        </div>
+
+      </article>
+
+
+      <!-- RULE 03 -->
+
+      <article class="rule-card" data-rule data-expanded="false">
+
+        <div class="rule-summary" data-toggle-rule>
+
+          <div class="priority">03</div>
+
+          <div class="rule-copy">
+            <strong>Exploit fire weakness</strong>
+            <small>
+              Enemy weak to Fire · Self MP &gt; 50%
+            </small>
+          </div>
+
+          <div class="action-badge magic">
+            <span>✦</span>
+            Any Fire Spell
+          </div>
+
+          <button class="chevron">›</button>
+
+        </div>
+
+        <div class="rule-editor">
+
+          <div class="editor-heading">
+            <span>TRIGGER CONDITIONS</span>
+          </div>
+
+          <div class="condition-preview">
+            <span>Enemy</span> is
+            <b>Weak to Fire</b>
+            <em>AND</em>
+            <span>Self</span> MP &gt;
+            <b>50%</b>
+          </div>
+
+          <div class="editor-section">
+
+            <div class="editor-heading">
+              <span>TARGET</span>
+            </div>
+
+            <div class="target-card">
+              <div class="target-icon">◎</div>
+              <div>
+                <small>TARGET SOURCE</small>
+                <strong>Previous Trigger Target</strong>
+              </div>
+              <button>Change</button>
+            </div>
+
+          </div>
+
+          <div class="editor-section">
+
+            <div class="editor-heading">
+              <span>ACTION SELECTOR</span>
+            </div>
+
+            <select>
+              <option>Any Fire-element Spell</option>
+              <option>Any Fire Skill</option>
+              <option>Specific Skill...</option>
+            </select>
+
+            <small class="random">
+              ✦ Multiple matching skills are chosen randomly
+            </small>
+
+          </div>
+
+        </div>
+
+      </article>
+
+
+      <!-- RULE 04 -->
+
+      <article class="rule-card" data-rule data-expanded="false">
+
+        <div class="rule-summary" data-toggle-rule>
+
+          <div class="priority">04</div>
+
+          <div class="rule-copy">
+            <strong>Heal self</strong>
+            <small>Self HP &lt; 40%</small>
+          </div>
+
+          <div class="action-badge support">
+            <span>✦</span>
+            Cure
+          </div>
+
+          <button class="chevron">›</button>
+
+        </div>
+
+        <div class="rule-editor">
+
+          <div class="editor-heading">
+            <span>TRIGGER</span>
+          </div>
+
+          <div class="condition-preview">
+            <span>Self</span> HP &lt; <b>40%</b>
+          </div>
+
+          <div class="editor-section">
+            <div class="editor-heading">
+              <span>TARGET</span>
+            </div>
+
+            <div class="target-card">
+              <div class="target-icon self">◆</div>
+              <div>
+                <small>TARGET</small>
+                <strong>Self</strong>
+              </div>
+            </div>
+          </div>
+
+          <div class="editor-section">
+            <div class="editor-heading">
+              <span>ACTION</span>
+            </div>
+
+            <select>
+              <option>Cure</option>
+            </select>
+          </div>
+
+        </div>
+
+      </article>
+
+
+      <!-- RULE 05 -->
+
+      <article class="rule-card" data-rule data-expanded="false">
+
+        <div class="rule-summary" data-toggle-rule>
+
+          <div class="priority">05</div>
+
+          <div class="rule-copy">
+            <strong>Restore MP</strong>
+            <small>Self MP &lt; 10%</small>
+          </div>
+
+          <div class="action-badge item">
+            <span>◆</span>
+            Magic Water
+          </div>
+
+          <button class="chevron">›</button>
+
+        </div>
+
+        <div class="rule-editor">
+
+          <div class="editor-heading">
+            <span>TRIGGER</span>
+          </div>
+
+          <div class="condition-preview">
+            <span>Self</span> MP &lt; <b>10%</b>
+          </div>
+
+          <div class="editor-section">
+            <div class="editor-heading">
+              <span>TARGET</span>
+            </div>
+
+            <div class="target-card">
+              <div class="target-icon self">◆</div>
+              <div>
+                <small>TARGET</small>
+                <strong>Self</strong>
+              </div>
+            </div>
+          </div>
+
+          <div class="editor-section">
+            <div class="editor-heading">
+              <span>ITEM</span>
+            </div>
+
+            <select>
+              <option>Magic Water</option>
+            </select>
+          </div>
+
+        </div>
+
+      </article>
+
+
+      <!-- RULE 06 -->
+
+      <article class="rule-card" data-rule data-expanded="false">
+
+        <div class="rule-summary" data-toggle-rule>
+
+          <div class="priority">06</div>
+
+          <div class="rule-copy">
+            <strong>Emergency potion</strong>
+            <small>Self HP &lt; 30%</small>
+          </div>
+
+          <div class="action-badge item">
+            <span>◆</span>
+            Potion
+          </div>
+
+          <button class="chevron">›</button>
+
+        </div>
+
+        <div class="rule-editor">
+
+          <div class="editor-heading">
+            <span>TRIGGER</span>
+          </div>
+
+          <div class="condition-preview">
+            <span>Self</span> HP &lt; <b>30%</b>
+          </div>
+
+          <div class="editor-section">
+            <div class="editor-heading">
+              <span>TARGET</span>
+            </div>
+
+            <div class="target-card">
+              <div class="target-icon self">◆</div>
+              <div>
+                <small>TARGET</small>
+                <strong>Self</strong>
+              </div>
+            </div>
+          </div>
+
+          <div class="editor-section">
+            <div class="editor-heading">
+              <span>ITEM</span>
+            </div>
+
+            <select>
+              <option>Potion</option>
+            </select>
+          </div>
+
+        </div>
+
+      </article>
+
+
+      <!-- FALLBACK -->
+
+      <div class="fallback">
+
+        <div class="fallback-heading">
+          <span>∞</span>
+          <div>
+            <strong>FINAL INSTRUCTION</strong>
+            <small>Always evaluated last.</small>
+          </div>
+        </div>
+
+
+        <article
+          class="rule-card fallback-card"
+          data-rule
+          data-expanded="false"
+        >
+
+          <div class="rule-summary" data-toggle-rule>
+
+            <div class="priority">∞</div>
+
+            <div class="rule-copy">
+              <strong>Default Action</strong>
+              <small>Always true</small>
+            </div>
+
+            <div class="action-badge attack">
+              <span>⚔</span>
+              Attack Random Enemy
+            </div>
+
+            <button class="chevron">›</button>
+
+          </div>
+
+
+          <div class="rule-editor">
+
+            <div class="editor-heading">
+              <span>TRIGGER</span>
+            </div>
+
+            <div class="always-true">
+              <span>✓</span>
+              <strong>Always True</strong>
+              <small>
+                The fallback rule cannot be removed or reordered.
+              </small>
+            </div>
+
+            <div class="editor-section">
+
+              <div class="editor-heading">
+                <span>TARGET</span>
+              </div>
+
+              <select>
+                <option>Random Enemy</option>
+                <option>Lowest HP Enemy</option>
+                <option>Highest Threat Enemy</option>
+              </select>
+
+            </div>
+
+            <div class="editor-section">
+
+              <div class="editor-heading">
+                <span>ACTION</span>
+              </div>
+
+              <select>
+                <option>Basic Attack</option>
+                <option>Any Attack Skill</option>
+                <option>Specific Skill...</option>
+              </select>
+
+            </div>
+
+          </div>
+
+        </article>
+
+      </div>
+
+    </section>
+
+  </main>
+
+</div>
+```
+
+  </div>
+
+  <script src="app.js"></script>
+
+</body>
+</html>

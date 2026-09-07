@@ -278,3 +278,442 @@ body {
   font-size: 13px;
   color: var(--te-good);
 }
+
+/* --- Script Editor overlay (DOM, M4) --- */
+
+#script-editor-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 50;
+}
+
+#script-editor-backdrop.hidden {
+  display: none;
+}
+
+/* --- M5 Dry-run preview --- */
+
+.se-preview {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--se-border);
+}
+.se-preview-mock {
+  margin-bottom: 8px;
+}
+.se-p-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.se-p-row > span {
+  font-family: var(--font-body);
+  font-size: 12px;
+  color: var(--se-textMuted);
+}
+.se-p-row input[type='range'] {
+  flex: 1;
+  min-width: 120px;
+  accent-color: var(--se-accent);
+}
+.se-p-row input[type='number'] {
+  width: 56px;
+}
+.se-preview-statuses {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 8px 0;
+}
+.se-preview-statuses > span {
+  line-height: 24px;
+  font-family: var(--font-body);
+  font-size: 12px;
+  color: var(--se-textMuted);
+  white-space: nowrap;
+}
+.se-preview-btns {
+  display: flex;
+  gap: 8px;
+  margin: 8px 0;
+}
+.se-preview-result,
+.se-preview-events {
+  padding: 8px 10px;
+  margin: 6px 0 12px;
+  background: var(--se-face);
+  border: 1px solid var(--se-border);
+  border-radius: 6px;
+  font-family: var(--font-body);
+  font-size: 12px;
+  color: var(--se-text);
+  line-height: 1.6;
+  min-height: 28px;
+  white-space: pre-line;
+}
+.se-preview-evt {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 8px 0;
+}
+
+#script-editor {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(820px, 94vw);
+  height: min(86vh, 720px);
+  display: flex;
+  flex-direction: column;
+  background: var(--se-panel);
+  border: 2px solid var(--se-borderLight);
+  border-radius: 10px;
+  box-shadow: 0 12px 44px rgba(0, 0, 0, 0.65);
+  color: var(--se-text);
+  font-family: 'EB Garamond', Georgia, 'Times New Roman', serif;
+  z-index: 51;
+  overflow: hidden;
+}
+
+#script-editor.hidden {
+  display: none;
+}
+
+.se-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--se-borderLight);
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.se-title {
+  font-family: 'IM Fell English', Georgia, serif;
+  font-size: 20px;
+  letter-spacing: 1px;
+  color: var(--se-gold);
+  margin: 0;
+}
+
+.se-name {
+  flex: 1;
+  font-family: 'EB Garamond', Georgia, serif;
+  font-size: 16px;
+  padding: 4px 9px;
+  border: 1px solid var(--se-border);
+  border-radius: 4px;
+  background: var(--se-face);
+  color: var(--se-text);
+}
+
+.se-close {
+  background: transparent;
+  border: 1px solid var(--se-borderLight);
+  color: var(--se-text);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  width: 28px;
+  height: 28px;
+  line-height: 1;
+}
+
+.se-close:hover {
+  background: var(--se-hover);
+  color: var(--se-textOnAccent);
+}
+
+.se-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.se-footer {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--se-borderLight);
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.se-btn {
+  font-family: 'EB Garamond', Georgia, serif;
+  font-size: 12px;
+  padding: 4px 12px;
+  border-radius: 4px;
+  border: 1px solid var(--se-borderLight);
+  background: var(--se-accent);
+  color: var(--se-textOnAccent);
+  cursor: pointer;
+}
+
+.se-btn:hover:not(:disabled) {
+  background: var(--se-hover);
+}
+
+.se-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.se-block-head {
+  font-family: 'IM Fell English', Georgia, serif;
+  font-size: 15px;
+  letter-spacing: 1px;
+  color: var(--se-gold);
+  border-bottom: 1px solid var(--se-border);
+  padding-bottom: 3px;
+}
+
+.se-sec {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  border: 1px solid var(--se-border);
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.1);
+}
+
+.se-sec-head {
+  font-family: 'IM Fell English', Georgia, serif;
+  font-size: 12px;
+  letter-spacing: 1px;
+  color: var(--se-gold);
+}
+
+.se-rule {
+  border: 1px solid var(--se-border);
+  border-radius: 6px;
+  background: var(--se-face);
+}
+
+.se-rule-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--se-border);
+}
+
+.se-prio {
+  font-family: 'IM Fell English', Georgia, serif;
+  font-size: 15px;
+  color: var(--se-accent);
+  min-width: 22px;
+}
+
+.se-summary {
+  flex: 1;
+  font-size: 13px;
+  color: var(--se-textMuted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.se-rule-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px;
+}
+
+.se-rule-body.hidden,
+.se-nested.hidden {
+  display: none;
+}
+
+.se-rule-actions {
+  display: flex;
+  gap: 4px;
+  padding: 6px 8px;
+  border-top: 1px solid var(--se-border);
+}
+
+.se-toggle {
+  background: transparent;
+  border: none;
+  color: var(--se-accent);
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.se-mini {
+  font-family: 'EB Garamond', Georgia, serif;
+  font-size: 11px;
+  padding: 2px 7px;
+  border-radius: 4px;
+  border: 1px solid var(--se-borderLight);
+  background: transparent;
+  color: var(--se-text);
+  cursor: pointer;
+}
+
+.se-mini:hover:not(:disabled) {
+  background: var(--se-hover);
+  color: var(--se-textOnAccent);
+}
+
+.se-mini:disabled {
+  color: var(--se-textDim);
+  cursor: default;
+}
+
+.se-mini.rm {
+  color: var(--se-bad);
+  border-color: var(--se-bad);
+}
+
+.se-mini.add {
+  color: var(--se-accent);
+}
+
+.se-ops {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.se-chip {
+  font-family: 'EB Garamond', Georgia, serif;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  border: 1px solid var(--se-borderLight);
+  background: transparent;
+  color: var(--se-textMuted);
+  cursor: pointer;
+}
+
+.se-chip.on {
+  background: var(--se-accent);
+  color: var(--se-textOnAccent);
+  border-color: var(--se-accent);
+}
+
+.se-chips {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.se-c-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.se-p-params {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.se-cond-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.se-cond-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.se-cond-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px 8px;
+  border-left: 2px solid var(--se-border);
+  margin-left: 6px;
+}
+
+.se-target-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.se-filter-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.se-f-params {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.se-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.se-num {
+  width: 64px;
+  font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+  font-size: 12px;
+  padding: 2px 5px;
+  border: 1px solid var(--se-border);
+  border-radius: 4px;
+  background: var(--se-face);
+  color: var(--se-text);
+}
+
+#script-editor select {
+  font-family: 'EB Garamond', Georgia, serif;
+  font-size: 12px;
+  padding: 2px 5px;
+  border: 1px solid var(--se-borderLight);
+  border-radius: 4px;
+  background: var(--se-face);
+  color: var(--se-text);
+  max-width: 220px;
+}
+
+#script-editor input[type='checkbox'] {
+  accent-color: var(--se-accent);
+}
+
+.se-dim {
+  color: var(--se-textDim);
+  font-style: italic;
+  font-size: 12px;
+}
+
+.se-nested {
+  border-left: 2px solid var(--se-border);
+  padding-left: 12px;
+  margin-top: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}

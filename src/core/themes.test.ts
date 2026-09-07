@@ -67,7 +67,7 @@ afterEach(() => {
 describe('initThemes', () => {
   it('seeds built-in presets and defaults to earthstone', () => {
     expect(getActiveProfile().id).toBe(DEFAULT_THEME_ID)
-    expect(getThemeProfiles().map((p) => p.id)).toEqual([DEFAULT_THEME_ID])
+    expect(getThemeProfiles().map((p) => p.id)).toEqual(Object.keys(PRESET_THEMES))
     expect(isPresetProfile(DEFAULT_THEME_ID)).toBe(true)
   })
 
@@ -92,7 +92,7 @@ describe('initThemes', () => {
     resetThemes()
     initThemes()
     expect(getActiveProfile().id).toBe(DEFAULT_THEME_ID)
-    expect(getThemeProfiles()).toHaveLength(1)
+    expect(getThemeProfiles()).toHaveLength(Object.keys(PRESET_THEMES).length)
   })
 
   it('falls back when activeId references an unknown profile', () => {

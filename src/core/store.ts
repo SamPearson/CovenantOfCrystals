@@ -20,6 +20,10 @@ import { validateLoadout } from './items'
 import { refreshShopStock } from './shop/shop'
 import { refreshRecruitment } from './shop/recruitment'
 import { createRng } from './rng/rng'
+import { uuid } from './id'
+import { validateScriptDepth } from './scripting/interpreter'
+import { SCRIPT_LIBRARY_CAP } from './scripting/types'
+import type { CharacterScript } from './scripting/types'
 
 type Listener = () => void
 
@@ -166,6 +170,109 @@ export function setAutobattle(characterId: string, presetId: PlayerAiPresetId | 
   character.autobattle = presetId
   writeSave(current)
   notify()
+}
+
+// ---------------------------------------------------------------------------
+// Scripting library (Phase 4.5.2 M3). A per-profile `scriptLibrary` of
+// `CharacterScript`s; characters reference one by `scriptId`. Built-in scripts
+// are read-only (refuse edit/delete); players duplicate them into editable
+// copies. All mutations validate nesting depth and persist immediately.
+// ---------------------------------------------------------------------------
+
+/** All scripts in the profile library. */
+export function getScripts(): CharacterScript[] {
+  return current.profile.scriptLibrary
+}
+
+/** A single library script by id, or undefined. */
+export function getScript(id: string): CharacterScript | undefined {
+  return current.profile.scriptLibrary.find((s) => s.id === id)
+}
+
+/**
+ * Adds a new (player-authored) script to the library. Throws if the id already
+ * exists or the script is flagged built-in. Validates nesting depth ≤ 2.
+ */
+export function createScript(script: CharacterScript): void {
+  if (script.builtIn) throw new Error('Cannot create a built-in script')
+  if (getScript(script.id)) throw new Error(`Script "${script.id}" already exists`)
+  if (current.profile.scriptLibrary.length >= SCRIPT_LIBRARY_CAP) {
+    throw new Error(`Script library is full (max ${SCRIPT_LIBRARY_CAP} scripts)`)
+  }
+  validateScriptDepth(script)
+  mutate((profile) => {
+    profile.scriptLibrary.push(script)
+  })
+}
+
+/**
+ * Replaces an existing library script. Refuses built-ins (S14). Validates
+ * nesting depth. Live — a character using this script picks up changes next
+ * turn (S15).
+ */
+export function updateScript(script: CharacterScript): void {
+  if (script.builtIn) throw new Error('Cannot edit a built-in script')
+  const existing = getScript(script.id)
+  if (!existing) throw new Error(`Script "${script.id}" not found`)
+  if (existing.builtIn) throw new Error('Cannot edit a built-in script')
+  validateScriptDepth(script)
+  mutate((profile) => {
+    const i = profile.scriptLibrary.findIndex((s) => s.id === script.id)
+    profile.scriptLibrary[i] = script
+  })
+}
+
+/** Removes a script from the library. Refuses built-ins (S14). */
+export function deleteScript(id: string): void {
+  const existing = getScript(id)
+  if (!existing) throw new Error(`Script "${id}" not found`)
+  if (existing.builtIn) throw new Error('Cannot delete a built-in script')
+  mutate((profile) => {
+    profile.scriptLibrary = profile.scriptLibrary.filter((s) => s.id !== id)
+    // Any character pointing at the deleted script falls back to Manual.
+    for (const character of Object.values(profile.characters)) {
+      if (character.scriptId === id) character.scriptId = undefined
+    }
+  })
+}
+
+/**
+ * Duplicates a library script (built-in or player) into a new editable copy:
+ * fresh id, `builtIn` cleared, name suffixed with " (copy)". The copy is added
+ * to the library and returned (the caller can then assign it).
+ */
+export function duplicateScript(id: string): CharacterScript {
+  const existing = getScript(id)
+  if (!existing) throw new Error(`Script "${id}" not found`)
+  if (current.profile.scriptLibrary.length >= SCRIPT_LIBRARY_CAP) {
+    throw new Error(`Script library is full (max ${SCRIPT_LIBRARY_CAP} scripts)`)
+  }
+  const copy: CharacterScript = JSON.parse(JSON.stringify(existing))
+  copy.id = uuid()
+  copy.builtIn = false
+  copy.name = `${existing.name} (copy)`
+  copy.createdAt = Date.now()
+  copy.updatedAt = Date.now()
+  mutate((profile) => {
+    profile.scriptLibrary.push(copy)
+  })
+  return copy
+}
+
+/**
+ * Assigns a library script to a character (S12). `scriptId` undefined (or a
+ * missing id) returns the character to Manual. Takes effect on the character's
+ * next turn (S15).
+ */
+export function assignScript(characterId: string, scriptId: string | undefined): void {
+  const character = current.profile.characters[characterId]
+  if (!character) throw new Error(`Character not found: ${characterId}`)
+  if (scriptId !== undefined && !getScript(scriptId)) {
+    throw new Error(`Script "${scriptId}" not found`)
+  }
+  mutate((profile) => {
+    profile.characters[characterId]!.scriptId = scriptId
+  })
 }
 
 /**

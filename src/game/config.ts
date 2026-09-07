@@ -20,6 +20,9 @@ export function startGame(parent: string | HTMLElement): Phaser.Game {
       mode: Phaser.Scale.FIT,
       autoCenter: Phaser.Scale.CENTER_BOTH,
     },
+    input: {
+      windowEvents: false,
+    },
     scene: [BootScene, MetaScene, BattleScene, RunScene, ResultScene],
   })
 }

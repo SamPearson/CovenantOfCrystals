@@ -10,12 +10,15 @@
 import type {
   BattleAction,
   BattleActor,
+  BattleEvent,
   BattleLogEntry,
   BattleResult,
   BattleState,
+  PendingReaction,
   TurnOutcome,
 } from './types'
 import type { Character, EnemyDef, PlayerAiPresetId, SkillDef } from '../types'
+import type { CharacterScript } from '../scripting/types'
 import { derivedStats } from '../character'
 import { getClass, getSkill, getItem, getAiScript, getPlayerAiScript, BALANCE } from '../data'
 import { timeToNextTurn, insertActor, removeActor, peekNext } from './timeline'
@@ -40,9 +43,16 @@ import {
   applyStatus,
 } from './status'
 import { chooseAction, type AiBattlefield, type AiActorState } from './ai'
+import { applyPassivesAtBattleStart } from './passives'
+import { checkReactions, type ReactionPlan } from './reactions'
 import type { Rng } from '../rng/rng'
 
 const WAITING_DELAY = BALANCE.actionDelays.attack
+/**
+ * Hard ceiling on reaction-bus events processed per turn — a runaway chain
+ * (e.g. two reactions re-triggering each other) degrades to being contained.
+ */
+const REACTION_EVENT_BUDGET = 200
 
 /** Creates a seeded battle state: party vs. enemy squad on a shared CTB queue. */
 export function createBattle(
@@ -113,16 +123,22 @@ export function createBattle(
         : a.actorId.localeCompare(b.actorId),
   )
 
-  return {
+  const battle: BattleState = {
     seed,
     actors,
     queue,
     turnTime: 0,
     turnCount: 0,
+    pendingEvents: [],
+    reactionQueue: [],
     log: [],
     status: 'ongoing',
     over: false,
   }
+
+  // Passives (S7) apply once, immediately, before the first action resolves.
+  applyPassivesAtBattleStart(battle)
+  return battle
 }
 
 /** Resolves one actor's turn. The actor must be the front of the queue. */
@@ -146,6 +162,15 @@ export function performAction(
   if (!actor) throw new Error(`unknown actor: ${actorId}`)
   if (actor.ko) throw new Error(`cannot act: ${actorId} is KO'd`)
 
+  const log: BattleLogEntry[] = []
+  const push = (text: string, who?: string): void => {
+    log.push({ id: battle.log.length, turn, actorId: who, text })
+    battle.log.push(log[log.length - 1]!)
+  }
+
+  // Reactions scheduled for this clock tick resolve before the turn plays.
+  pumpReactions(battle, rng, push)
+
   actor.ownTurn = (actor.ownTurn ?? 0) + 1
   // Defend halves damage only until the defender's next own turn (§4).
   actor.defending = false
@@ -154,11 +179,7 @@ export function performAction(
     if (cooldowns[key]! > 0) cooldowns[key]! -= 1
   }
 
-  const log: BattleLogEntry[] = []
-  const push = (text: string, who?: string): void => {
-    log.push({ id: battle.log.length, turn, actorId: who, text })
-    battle.log.push(log[log.length - 1]!)
-  }
+  battle.pendingEvents.push({ kind: 'turn-start', actorId })
 
   // 1. Own-turn status effects tick first; a lethal tick ends the turn (§3).
   const tick = tickOwnTurnEffects(actor)
@@ -167,8 +188,10 @@ export function performAction(
   if (tick.ko) {
     actor.hp = 0
     actor.ko = true
+    battle.pendingEvents.push({ kind: 'ally-kod', actorId: actor.id })
     push(`${actor.name} falls.`, actor.id)
     finishTurn(battle, actor, push)
+    processEventQueue(battle, rng, push)
     return { actorId, action: null, log }
   }
 
@@ -176,8 +199,12 @@ export function performAction(
   if (isCrowdControlled(actor)) {
     push(`${actor.name} cannot act (${ccLabel(actor)}).`, actor.id)
     const expired = tickDurations(actor)
-    for (const e of expired) push(`${actor.name}'s ${e.kind} wore off.`, actor.id)
+    for (const e of expired) {
+      battle.pendingEvents.push({ kind: 'status-removed', actorId: actor.id })
+      push(`${actor.name}'s ${e.kind} wore off.`, actor.id)
+    }
     finishTurn(battle, actor, push, WAITING_DELAY)
+    processEventQueue(battle, rng, push)
     return { actorId, action: null, log }
   }
 
@@ -207,10 +234,15 @@ export function performAction(
 
   // 4. This actor's own-turn status durations tick down (§3).
   const expired = tickDurations(actor)
-  for (const e of expired) push(`${actor.name}'s ${e.kind} wore off.`, actor.id)
+  for (const e of expired) {
+    battle.pendingEvents.push({ kind: 'status-removed', actorId: actor.id })
+    push(`${actor.name}'s ${e.kind} wore off.`, actor.id)
+  }
 
   // 5–6. Re-insert, then advance the clock and check battle end.
   finishTurn(battle, actor, push, delay)
+  // Reactions observe the fully-resolved turn state (§5.5), in sheet order.
+  processEventQueue(battle, rng, push)
   return { actorId, action, log }
 }
 
@@ -226,6 +258,7 @@ function resolveAttack(
   const def = effectiveStat(target, 'def')
   const accuracy = effectiveAccuracy(actor, 1)
   if (!hitCheck(accuracy, BALANCE.dodgeRate, rng)) {
+    battle.pendingEvents.push({ kind: 'evaded', actorId: target.id, sourceId: actor.id })
     push(`${actor.name}'s attack misses ${target.name}.`, actor.id)
     return BALANCE.actionDelays.attack
   }
@@ -266,6 +299,9 @@ function resolveSkill(
 
   actor.mp -= skill.cost
   if (skill.cooldown) (actor.cooldowns ??= {})[skillId] = skill.cooldown
+  if (actor.side === 'enemy') {
+    battle.pendingEvents.push({ kind: 'enemy-casts', actorId: actor.id })
+  }
   castSkill(battle, actor, skill, action.targetId, rng, push)
 
   return delay
@@ -317,7 +353,10 @@ function castSkill(
   } else if (skill.kind === 'utility') {
     for (const target of targets) {
       const removed = cleanse(target)
-      if (removed.length > 0) push(`${target.name} is cleansed.`, actor.id)
+      if (removed.length > 0) {
+        battle.pendingEvents.push({ kind: 'status-removed', actorId: target.id, sourceId: actor.id })
+        push(`${target.name} is cleansed.`, actor.id)
+      }
     }
   }
 
@@ -325,6 +364,7 @@ function castSkill(
     for (const target of targets) {
       if (target.ko) continue
       if (applyStatus(target, skill.effect)) {
+        battle.pendingEvents.push({ kind: 'status-applied', actorId: target.id, sourceId: actor.id })
         push(`${target.name} gets ${skill.effect.kind}.`, actor.id)
       }
     }
@@ -341,9 +381,18 @@ function resolveItem(
   if (!action.itemId) throw new Error(`item action without an itemId for ${actor.id}`)
   const item = getItem(action.itemId)
 
+  // M7 — a single-use item is spent when used; remove it from the actor's
+  // battle inventory so the interpreter can't re-pick an already-consumed item.
+  const spend = (): void => {
+    if (!actor.items) return
+    const idx = actor.items.indexOf(item.id)
+    if (idx !== -1) actor.items.splice(idx, 1)
+  }
+
   // Scrolls cast their skill with no MP cost and no cooldown (`docs/combat.md` §11).
   if (item.castSkill) {
     const skill = getSkill(item.castSkill)
+    spend()
     push(`${actor.name} uses ${item.name}.`, actor.id)
     castSkill(battle, actor, skill, action.targetId, rng, push)
     return BALANCE.actionDelays.item
@@ -367,6 +416,7 @@ function resolveItem(
     target.mp += recovered
     push(`${actor.name} uses ${item.name}: ${target.name} recovers ${recovered} MP.`, actor.id)
   }
+  spend()
   return BALANCE.actionDelays.item
 }
 
@@ -390,11 +440,14 @@ function finishTurn(
       victim.hp = 0
       victim.ko = true
       battle.queue = removeActor(battle.queue, victim.id)
+      battle.pendingEvents.push({ kind: 'ally-kod', actorId: victim.id })
       const wasSleeping = victim.statuses.some((s) => s.kind === 'sleep')
       if (wasSleeping) wakeOnDamage(victim)
       push(`${victim.name} takes ${tick.damage} poison damage.`, victim.id)
     }
   }
+
+  battle.pendingEvents.push({ kind: 'turn-end', actorId: actor.id })
 
   // Battle-end check — the party side wins ties for simultaneous wipes.
   const partyAlive = Object.values(battle.actors).some((a) => a.side === 'player' && !a.ko)
@@ -418,17 +471,145 @@ function dealDamage(
   push: (text: string, who?: string) => void,
   fallbackDelay?: number,
 ): number {
+  battle.pendingEvents.push({ kind: 'attacked', actorId: target.id, sourceId: attacker.id })
   const wasSleeping = target.statuses.some((s) => s.kind === 'sleep')
   if (damage > 0 && wasSleeping) wakeOnDamage(target)
   target.hp = Math.max(0, target.hp - damage)
   if (target.hp === 0) {
     target.ko = true
     battle.queue = removeActor(battle.queue, target.id)
+    battle.pendingEvents.push({ kind: 'ally-kod', actorId: target.id, sourceId: attacker.id })
     push(`${target.name} falls.`, attacker.id)
   } else {
     push(`${attacker.name} hits ${target.name} for ${damage}.`, attacker.id)
   }
   return fallbackDelay ?? 0
+}
+
+/** Raised reactions are resolved by the run layer — dormant until one is set. */
+
+function reactionBusActive(battle: BattleState): battle is BattleState & {
+  reactionResolver: (characterId: string) => CharacterScript | undefined
+} {
+  return !!battle.reactionResolver
+}
+
+/**
+ * Drains the pending-event queue once per resolved turn: every actor's
+ * reactions whose gate passes fire in sheet order (S61). Delay 0 plans run
+ * inline; delayed plans are scheduled onto the reaction queue (S62).
+ */
+function processEventQueue(
+  battle: BattleState,
+  rng: Rng,
+  push: (text: string, who?: string) => void,
+): void {
+  if (!reactionBusActive(battle) || battle.over || battle.pendingEvents.length === 0) return
+  let budget = REACTION_EVENT_BUDGET
+  let previous: BattleEvent | undefined
+  while (battle.pendingEvents.length > 0 && !battle.over && budget > 0) {
+    const event = battle.pendingEvents[0]!
+    battle.pendingEvents = battle.pendingEvents.slice(1)
+    const plans = checkReactions(battle, event, previous, battle.reactionResolver)
+    for (const plan of plans) {
+      if (battle.over) break
+      if (plan.delay > 0) {
+        scheduleReaction(battle, plan)
+      } else {
+        executeReaction(battle, plan, rng, push)
+      }
+    }
+    previous = event
+    budget -= 1
+  }
+  if (budget <= 0 && battle.pendingEvents.length > 0) {
+    battle.pendingEvents = []
+    push('The reaction storm is contained.', undefined)
+  }
+}
+
+/** Reactions scheduled for this clock tick resolve before the turn plays. */
+function pumpReactions(
+  battle: BattleState,
+  rng: Rng,
+  push: (text: string, who?: string) => void,
+): void {
+  if (!reactionBusActive(battle) || battle.over || battle.reactionQueue.length === 0) return
+  const due = battle.reactionQueue.filter((r) => r.at <= battle.turnTime)
+  if (due.length === 0) return
+  battle.reactionQueue = battle.reactionQueue.filter((r) => r.at > battle.turnTime)
+  for (const reaction of due) {
+    if (battle.over) return
+    executeReaction(battle, planFromReaction(reaction), rng, push)
+  }
+}
+
+function scheduleReaction(battle: BattleState, plan: ReactionPlan): void {
+  const actor = battle.actors[plan.actorId]
+  if (!actor || actor.ko || battle.over) return
+  const at = battle.turnTime + timeToNextTurn(effectiveStat(actor, 'spd'), plan.delay)
+  const queued: PendingReaction = {
+    id: `${battle.turnCount}.${plan.actorId}.${plan.id}.${battle.reactionQueue.length}`,
+    actorId: plan.actorId,
+    at,
+    action: planToAction(plan),
+    targetId: plan.targetId,
+  }
+  battle.reactionQueue = [...battle.reactionQueue, queued].sort((a, b) => a.at - b.at)
+}
+
+function planToAction(plan: ReactionPlan): BattleAction {
+  switch (plan.kind) {
+    case 'skill':
+      return { kind: 'skill', skillId: plan.skillId, targetId: plan.targetId }
+    case 'item':
+      return { kind: 'item', itemId: plan.itemId, targetId: plan.targetId }
+    case 'attack':
+      return { kind: 'attack', targetId: plan.targetId }
+    case 'defend':
+      return { kind: 'defend' }
+  }
+}
+
+function planFromReaction(reaction: PendingReaction): ReactionPlan {
+  switch (reaction.action.kind) {
+    case 'skill':
+      return { id: reaction.id, actorId: reaction.actorId, kind: 'skill', skillId: reaction.action.skillId, targetId: reaction.targetId, delay: 0 }
+    case 'item':
+      return { id: reaction.id, actorId: reaction.actorId, kind: 'item', itemId: reaction.action.itemId, targetId: reaction.targetId, delay: 0 }
+    case 'attack':
+      return { id: reaction.id, actorId: reaction.actorId, kind: 'attack', targetId: reaction.targetId, delay: 0 }
+    case 'defend':
+      return { id: reaction.id, actorId: reaction.actorId, kind: 'defend', delay: 0 }
+    case 'escape':
+      throw new Error(`escape cannot be a reaction action: ${reaction.id}`)
+  }
+}
+
+/** A single reaction resolving — guarded by over/KO, routed like normal actions. */
+function executeReaction(
+  battle: BattleState,
+  plan: ReactionPlan,
+  rng: Rng,
+  push: (text: string, who?: string) => void,
+): void {
+  const actor = battle.actors[plan.actorId]
+  if (!actor || actor.ko || battle.over) return
+  switch (plan.kind) {
+    case 'attack':
+      resolveAttack(battle, actor, { kind: 'attack', targetId: plan.targetId }, rng, push)
+      break
+    case 'skill':
+      if (plan.skillId) resolveSkill(battle, actor, { kind: 'skill', skillId: plan.skillId, targetId: plan.targetId }, rng, push)
+      break
+    case 'item':
+      if (plan.itemId) resolveItem(battle, actor, { kind: 'item', itemId: plan.itemId, targetId: plan.targetId }, rng, push)
+      break
+    case 'defend':
+      actor.defending = true
+      push(`${actor.name} defends.`, actor.id)
+      break
+  }
 }
 
 /** Effective stat after statBuff/statDebuff modifiers (§5). */

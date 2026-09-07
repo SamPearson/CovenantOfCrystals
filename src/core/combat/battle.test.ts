@@ -11,7 +11,10 @@ import {
   getBattleResult,
   performAction,
 } from './battle'
+import type { CharacterScript } from '../scripting/types'
 import { applyStatus } from './status'
+import { chooseScriptedAction, buildScriptContext } from '../scripting/interpreter'
+import { BUILT_IN_DPS } from '../data/scripts'
 
 function actNext(battle: ReturnType<typeof createBattle>, action: BattleAction, rng: () => number) {
   const who = battle.queue[0]!.actorId
@@ -182,6 +185,18 @@ describe('battle orchestration (phase 2, M4)', () => {
     const knightEntry = battle.queue.find((e) => e.actorId === aria.id)!
     const expected = BALANCE.actionDelays.item * (BALANCE.spdRef / 6)
     expect(knightEntry.nextAt).toBeCloseTo(expected, 3)
+  })
+
+  it('M7 — using an item removes it from actor.items (consumption)', () => {
+    const aria = createCharacter({ classId: 'knight', name: 'Aria' })
+    const battle = createBattle([aria], [ENEMIES.slime!], 1)
+    const knight = battle.actors[aria.id]!
+    knight.items = ['health_potion', 'health_potion']
+    knight.hp = 10
+    const rng = createRng(1)
+    actNext(battle, { kind: 'item', itemId: 'health_potion', targetId: aria.id }, rng)
+    expect(knight.items).toEqual(['health_potion'])
+    expect(knight.hp).toBe(90)
   })
 
   it('an item with no use effect throws', () => {
@@ -428,5 +443,242 @@ describe('choosePartyAction (Phase 4 M1)', () => {
     const aria = createCharacter({ classId: 'knight', name: 'Aria' })
     const battle = createBattle([aria], [ENEMIES.slime!], 1)
     expect(() => choosePartyAction(battle, 'ghost', 'dps')).toThrow(/unknown actor/)
+  })
+})
+
+function reactScript(reactions: CharacterScript['reactions']): CharacterScript {
+  return {
+    id: 'custom.react',
+    name: 'Reactor',
+    builtIn: true,
+    rootBlock: { id: 'root', depth: 0, lines: [], nested: [] },
+    reactions,
+    createdAt: 0,
+    updatedAt: 0,
+  }
+}
+
+const reactRule: NonNullable<CharacterScript['reactions']>[number] = {
+  id: 'm6.r1',
+  gate: { kind: 'attacked', source: 'enemy', target: 'self' },
+  target: { kind: 'attacker' },
+  action: { source: 'skills', filters: [{ kind: 'byId', skillId: 'thorns' }] },
+  delay: 0,
+}
+
+describe('battle reactions (phase 4.5.2, M2)', () => {
+  it('an enemy attack on the scripted character fires the hired thorns as a reaction', () => {
+    const aria = createCharacter({ classId: 'knight', name: 'Aria' })
+    aria.loadout = ['thorns']
+    const battle = createBattle([aria], [ENEMIES.slime!], 1)
+    battle.reactionResolver = (characterId) =>
+      characterId === aria.id
+        ? reactScript([
+            {
+              id: 'r1',
+              gate: { kind: 'attacked', source: 'enemy', target: 'self' },
+              target: { kind: 'attacker' },
+              action: { source: 'skills', filters: [{ kind: 'byId', skillId: 'thorns' }] },
+              delay: 0,
+            },
+          ])
+        : undefined
+    const ariaActor = battle.actors[aria.id]!
+    const slime = battle.actors['slime#0']!
+    const rng = () => 0.5
+
+    const selfHit = actNext(battle, { kind: 'attack', targetId: slime.id }, rng)
+    expect(selfHit.log.some((l) => l.text.includes('hits'))).toBe(true)
+
+    battle.queue = [
+      { actorId: slime.id, side: 'enemy', nextAt: 0 },
+      ...battle.queue.filter((e) => e.actorId !== slime.id),
+    ]
+    const slimeHpBefore = slime.hp
+    const foeHit = actNext(battle, { kind: 'attack', targetId: ariaActor.id }, rng)
+    expect(foeHit.log.some((l) => l.text.includes('hits'))).toBe(true)
+    expect(slime.hp).toBeLessThan(slimeHpBefore)
+    expect(ariaActor.mp).toBe(BALANCE.maxMp - 4)
+    expect(battle.pendingEvents).toHaveLength(0)
+    expect(battle.reactionQueue).toHaveLength(0)
+  })
+
+  it('reactions stay dormant without a resolver', () => {
+    const aria = createCharacter({ classId: 'knight', name: 'Aria' })
+    aria.loadout = ['thorns']
+    const battle = createBattle([aria], [ENEMIES.slime!], 1)
+    const ariaActor = battle.actors[aria.id]!
+    const slime = battle.actors['slime#0']!
+    const rng = createRng(1)
+    actNext(battle, { kind: 'attack', targetId: ariaActor.id }, rng)
+    expect(ariaActor.mp).toBe(BALANCE.maxMp)
+    expect(slime.statuses).toHaveLength(0)
+  })
+
+  it('a delayed reaction queues on the reaction clock and fires on a later pump', () => {
+    const aria = createCharacter({ classId: 'knight', name: 'Aria' })
+    aria.loadout = ['thorns']
+    const battle = createBattle([aria], [ENEMIES.slime!], 1)
+    battle.reactionResolver = (characterId) =>
+      characterId === aria.id
+        ? reactScript([
+            {
+              id: 'slow',
+              gate: { kind: 'attacked', source: 'enemy', target: 'self' },
+              target: { kind: 'attacker' },
+              action: { source: 'skills', filters: [{ kind: 'byId', skillId: 'thorns' }] },
+              delay: 120,
+            },
+          ])
+        : undefined
+    const ariaActor = battle.actors[aria.id]!
+    const slime = battle.actors['slime#0']!
+    const rng = () => 0.5
+
+    const selfHit = actNext(battle, { kind: 'attack', targetId: slime.id }, rng)
+    expect(selfHit.log.some((l) => l.text.includes('hits'))).toBe(true)
+
+    battle.queue = [
+      { actorId: slime.id, side: 'enemy', nextAt: 0 },
+      ...battle.queue.filter((e) => e.actorId !== slime.id),
+    ]
+    const foeHit = actNext(battle, { kind: 'attack', targetId: ariaActor.id }, rng)
+    expect(foeHit.log.some((l) => l.text.includes('hits'))).toBe(true)
+    expect(battle.reactionQueue).toHaveLength(1)
+    expect(battle.reactionQueue[0]!.actorId).toBe(aria.id)
+    expect(ariaActor.mp).toBe(BALANCE.maxMp)
+
+    actNext(battle, { kind: 'defend' }, rng)
+    actNext(battle, { kind: 'attack', targetId: ariaActor.id }, rng)
+    expect(ariaActor.mp).toBe(BALANCE.maxMp - 4)
+    expect(battle.reactionQueue).toHaveLength(0)
+  })
+})
+
+describe('scripted AUTO path (phase 4.5.2, M6)', () => {
+  it('a library script resolves the same action as the matching Phase 4 preset', () => {
+    const aria = createCharacter({ classId: 'knight', name: 'Aria' })
+    const battle = createBattle([aria], [ENEMIES.slime!], 1)
+    const id = aria.id
+    expect(battle.actors[id]!.ko).toBe(false)
+    const fromScript = chooseScriptedAction(BUILT_IN_DPS, buildScriptContext(battle, id), createRng(1))
+    const fromPreset = choosePartyAction(battle, id, 'dps', createRng(1))
+    expect(fromScript).toEqual(fromPreset)
+    expect(fromScript).toEqual({ kind: 'skill', skillId: 'slashing_strike', targetId: 'slime#0' })
+  })
+
+  it('the seeded run resolves identically to the dps preset when driven by the library script', () => {
+    const drive = (scripted: boolean) => {
+      const aria = createCharacter({ classId: 'knight', name: 'Aria' })
+      const battle = createBattle([aria], [ENEMIES.slime!], 1)
+      const rng = createRng(42)
+      const playerId = aria.id
+      for (let i = 0; i < 6; i++) {
+        const entry = battle.queue[0]!
+        if (entry.actorId === playerId) {
+          const action = scripted
+            ? chooseScriptedAction(BUILT_IN_DPS, buildScriptContext(battle, playerId), rng)
+            : choosePartyAction(battle, playerId, 'dps', rng)
+          performAction(battle, playerId, action!, rng)
+        } else {
+          performAction(battle, entry.actorId, chooseEnemyAction(battle, entry.actorId, rng), rng)
+        }
+        if (battle.over) break
+      }
+      return battle
+    }
+    const a = drive(true)
+    const b = drive(false)
+    const summarize = (battle: ReturnType<typeof createBattle>) =>
+      Object.values(battle.actors).map((x) => ({ hp: x.hp, mp: x.mp, ko: x.ko }))
+    expect(summarize(a)).toEqual(summarize(b))
+    expect(a.turnCount).toEqual(b.turnCount)
+  })
+
+  it('reactions from the assigned library script fire on the event bus while AUTO', () => {
+    const aria = createCharacter({ classId: 'knight', name: 'Aria' })
+    aria.loadout = ['thorns']
+    const battle = createBattle([aria], [ENEMIES.slime!], 1)
+    battle.reactionResolver = (characterId) =>
+      characterId === aria.id ? reactScript([reactRule]) : undefined
+    const ariaActor = battle.actors[aria.id]!
+    const slime = battle.actors['slime#0']!
+    const rng = createRng(7)
+    battle.queue = [
+      { actorId: slime.id, side: 'enemy', nextAt: 0 },
+      ...battle.queue.filter((e) => e.actorId !== slime.id),
+    ]
+    const foeHit = actNext(battle, { kind: 'attack', targetId: ariaActor.id }, rng)
+    expect(foeHit.log.some((l) => l.text.includes('hits'))).toBe(true)
+    expect(slime.hp).toBeLessThan(slime.stats.hp)
+    expect(ariaActor.mp).toBe(BALANCE.maxMp - 4)
+  })
+
+  it('reactions still fire while the character is in Manual (mode toggled off)', () => {
+    const aria = createCharacter({ classId: 'knight', name: 'Aria' })
+    aria.loadout = ['thorns']
+    const battle = createBattle([aria], [ENEMIES.slime!], 1)
+    battle.reactionResolver = (characterId) =>
+      characterId === aria.id ? reactScript([reactRule]) : undefined
+    const ariaActor = battle.actors[aria.id]!
+    const slime = battle.actors['slime#0']!
+    const rng = createRng(7)
+    battle.queue = [
+      { actorId: slime.id, side: 'enemy', nextAt: 0 },
+      ...battle.queue.filter((e) => e.actorId !== slime.id),
+    ]
+    const foeHit = actNext(battle, { kind: 'attack', targetId: ariaActor.id }, rng)
+    expect(foeHit.log.some((l) => l.text.includes('hits'))).toBe(true)
+    expect(slime.hp).toBeLessThan(slime.stats.hp)
+  })
+
+  it('M7 — a reaction item use consumes it from actor.items', () => {
+    const aria = createCharacter({ classId: 'knight', name: 'Aria' })
+    aria.loadout = ['thorns']
+    const battle = createBattle([aria], [ENEMIES.slime!], 1)
+    const reactionScript = reactScript([
+      {
+        id: 'm7.heal',
+        gate: { kind: 'attacked', source: 'enemy', target: 'self' },
+        target: { kind: 'self' },
+        action: { source: 'items', filters: [{ kind: 'byId', skillId: 'health_potion' }] },
+        delay: 0,
+      },
+    ])
+    battle.reactionResolver = (characterId) =>
+      characterId === aria.id ? reactionScript : undefined
+    const ariaActor = battle.actors[aria.id]!
+    ariaActor.items = ['health_potion']
+    const slime = battle.actors['slime#0']!
+    const rng = createRng(7)
+    battle.queue = [
+      { actorId: slime.id, side: 'enemy', nextAt: 0 },
+      ...battle.queue.filter((e) => e.actorId !== slime.id),
+    ]
+    actNext(battle, { kind: 'attack', targetId: ariaActor.id }, rng)
+    expect(ariaActor.items).toEqual([])
+    expect(battle.log.some((l) => l.text.includes('uses Health Potion'))).toBe(true)
+  })
+})
+
+describe('passives (phase 4.5.2, M2)', () => {
+  it('a loadout passive applies its status buff at battle start', () => {
+    const aria = createCharacter({ classId: 'knight', name: 'Aria' })
+    aria.loadout = ['fortress']
+    const battle = createBattle([aria], [ENEMIES.slime!], 1)
+    const ariaActor = battle.actors[aria.id]!
+    expect(ariaActor.statuses).toEqual([
+      expect.objectContaining({ kind: 'statBuff', stat: 'def', power: 1.3 }),
+    ])
+  })
+
+  it('a party-wide passive fans out to every living ally', () => {
+    const aria = createCharacter({ classId: 'knight', name: 'Aria' })
+    const lena = createCharacter({ classId: 'healer', name: 'Lena' })
+    aria.loadout = ['regen_aura']
+    const battle = createBattle([aria, lena], [ENEMIES.slime!], 1)
+    for (const id of [aria.id, lena.id]) {
+      expect(battle.actors[id]!.statuses.some((s) => s.kind === 'regen')).toBe(true)
+    }
   })
 })

@@ -21,7 +21,7 @@ export class ShopPanel extends Panel {
     const profile = getProfile()
     const pad = THEME.spacing.pad
     const rowH = 34
-    const gap = 3
+    const gap = 2
     const btnW = 84
     const btnH = 26
     const colW = (this.rect.w - pad * 3) / 2
@@ -35,29 +35,36 @@ export class ShopPanel extends Panel {
       ...profile.shop.rotating.skills.map((id) => getItem(id)),
     ]
 
-    let ry = listY + 16
-    for (const item of stockItems) {
+    // Stock runs two-across (potions, stat-shots, gear, skills) so the
+    // always-on items fit without needing to scroll the panel.
+    const cellGap = 4
+    const cellW = (colW - cellGap) / 2
+    stockItems.forEach((item, i) => {
+      const col = i % 2
+      const row = Math.floor(i / 2)
+      const cx = pad + col * (cellW + cellGap)
+      const ry = listY + 16 + row * (rowH + gap)
       const check = canBuyItem(profile, item.id)
-      makeSubpanel(this.scene, content, pad, ry, colW, rowH)
-      const name = uiText(
+      makeSubpanel(this.scene, content, cx, ry, cellW, rowH)
+      uiText(
         this.scene,
-        pad + 8,
-        ry + 8,
-        truncate(item.name, 22),
+        cx + 6,
+        ry + 7,
+        truncate(item.name, 15),
         { size: 'sm', color: THEME.rarity[item.rarity] },
         content,
       )
       uiText(
         this.scene,
-        pad + 8 + name.width + 10,
-        ry + 10,
+        cx + 6,
+        ry + 22,
         itemTypeLabel(item.type),
         { size: 'xs', color: THEME.colors.textMuted },
         content,
       )
       const button: Button = makeButton(
         this.scene,
-        pad + colW - btnW - 6,
+        cx + cellW - btnW - 4,
         ry + 4,
         `Buy ${check.price} gold`,
         () => {
@@ -71,12 +78,11 @@ export class ShopPanel extends Panel {
           }
           this.refresh()
         },
-        { width: btnW, height: btnH },
+        { width: btnW, height: btnH, fontSize: 'xs' },
         content,
       )
       if (!check.ok) button.setDisabled(true)
-      ry += rowH + gap
-    }
+    })
 
     const sellX = pad * 2 + colW
     uiText(this.scene, sellX, listY - 2, 'SELL GEAR', { size: 'xs', color: THEME.colors.accentBlue }, content)

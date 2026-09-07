@@ -18,6 +18,7 @@ import type {
   RecruitOffer,
   RunNode,
 } from './types'
+import type { CharacterScript, ScriptBlock } from './scripting/types'
 
 export class ValidationError extends Error {
   constructor(message: string) {
@@ -78,6 +79,9 @@ function validateCharacter(v: unknown, path: string): Character {
   if (!isRecord(v.earned)) throw new ValidationError(`${path}.earned: expected object`)
   if (!isNumber(v.earned.runs) || !isNumber(v.earned.wins)) {
     throw new ValidationError(`${path}.earned: expected runs and wins numbers`)
+  }
+  if (v.scriptId !== undefined && !isString(v.scriptId)) {
+    throw new ValidationError(`${path}.scriptId: expected string`)
   }
   return v as unknown as Character
 }
@@ -142,6 +146,56 @@ function validateAutobattlePrefs(v: unknown, path: string): AutobattlePrefs {
     }
   }
   return v as unknown as AutobattlePrefs
+}
+
+function validateBlock(v: unknown, path: string, expectedDepth: 0 | 1 | 2): ScriptBlock {
+  if (!isRecord(v)) throw new ValidationError(`${path}: expected block object`)
+  if (!isString(v.id)) throw new ValidationError(`${path}.id: expected string`)
+  if (v.depth !== expectedDepth) throw new ValidationError(`${path}.depth: expected ${expectedDepth}`)
+  if (!Array.isArray(v.lines)) throw new ValidationError(`${path}.lines: expected array`)
+  for (const line of v.lines) {
+    if (!isRecord(line)) throw new ValidationError(`${path}.lines[]: expected object`)
+    if (line.trigger !== undefined && !isRecord(line.trigger)) {
+      throw new ValidationError(`${path}.lines[].trigger: expected object`)
+    }
+    if (!isRecord(line.target)) throw new ValidationError(`${path}.lines[].target: expected object`)
+    if (!isRecord(line.action)) throw new ValidationError(`${path}.lines[].action: expected object`)
+  }
+  if (!Array.isArray(v.nested)) throw new ValidationError(`${path}.nested: expected array`)
+  for (const child of v.nested) validateBlock(child, `${path}.nested[]`, (expectedDepth + 1) as 0 | 1 | 2)
+  return v as unknown as ScriptBlock
+}
+
+function validateScript(v: unknown, path: string): CharacterScript {
+  if (!isRecord(v)) throw new ValidationError(`${path}: expected object`)
+  if (!isString(v.id) || !isString(v.name)) {
+    throw new ValidationError(`${path}: expected id and name strings`)
+  }
+  if (v.description !== undefined && !isString(v.description)) {
+    throw new ValidationError(`${path}.description: expected string`)
+  }
+  if (v.art !== undefined && !isString(v.art)) {
+    throw new ValidationError(`${path}.art: expected string`)
+  }
+  if (!isRecord(v.rootBlock)) throw new ValidationError(`${path}.rootBlock: expected object`)
+  validateBlock(v.rootBlock, `${path}.rootBlock`, 0)
+  if (v.fallback !== undefined) {
+    if (!isRecord(v.fallback)) throw new ValidationError(`${path}.fallback: expected object`)
+    if (v.fallback.trigger !== undefined && !isRecord(v.fallback.trigger)) {
+      throw new ValidationError(`${path}.fallback.trigger: expected object`)
+    }
+    if (!isRecord(v.fallback.target)) throw new ValidationError(`${path}.fallback.target: expected object`)
+    if (!isRecord(v.fallback.action)) throw new ValidationError(`${path}.fallback.action: expected object`)
+  }
+  if (v.reactions !== undefined) {
+    if (!Array.isArray(v.reactions)) throw new ValidationError(`${path}.reactions: expected array`)
+    v.reactions.forEach((r, i) => {
+      if (!isRecord(r)) throw new ValidationError(`${path}.reactions[${i}]: expected object`)
+      if (!isString(r.id)) throw new ValidationError(`${path}.reactions[${i}].id: expected string`)
+      if (!isRecord(r.gate)) throw new ValidationError(`${path}.reactions[${i}].gate: expected object`)
+    })
+  }
+  return v as unknown as CharacterScript
 }
 
 function validateRunNode(v: unknown, path: string): RunNode {
@@ -214,6 +268,10 @@ function validateProfile(v: unknown, path: string): PlayerProfile {
   }
   // Optional — v1 saves lack it; migrateSave default-fills (A12).
   if (v.autobattle !== undefined) validateAutobattlePrefs(v.autobattle, `${path}.autobattle`)
+  if (v.scriptLibrary !== undefined) {
+    if (!Array.isArray(v.scriptLibrary)) throw new ValidationError(`${path}.scriptLibrary: expected array`)
+    v.scriptLibrary.forEach((s, i) => validateScript(s, `${path}.scriptLibrary[${i}]`))
+  }
   if (!isNumber(v.createdAt)) throw new ValidationError(`${path}.createdAt: expected number`)
   return v as unknown as PlayerProfile
 }

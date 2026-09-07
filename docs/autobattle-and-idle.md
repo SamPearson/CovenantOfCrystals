@@ -25,16 +25,19 @@ combat.
 
 ## 2. Autobattle behavior
 
-- **Per-character AI "scripts"** chosen in the party/equip screen, e.g.:
-  - `Balanced` — attack, use a strong skill when available, heal when hurt.
-  - `Healer` — heal allies below X% first, attack otherwise.
-  - `Glass Cannon` — always highest-damage option, ignore self-preservation.
-  - `Tank` — defend/taunt, prioritize keeping allies alive.
-- A script is a simple priority list (condition → action). v1 ships with
-  **curated presets only**; a **player-authored script editor** (mini-DSL) is
-  explicitly **not in v1** (see roadmap).
-- Defaults: party members start on `Balanced` unless the player assigns
-  otherwise; the player can switch a character to Manual at any time.
+- **Per-character AI "scripts"** other than the two library built-ins are
+  **player-authored** in the Automation Window. A script is a priority list of
+  rules (trigger → target → action) plus a reactions sheet — see
+  `specs/character-scripting.md` and the sprint plan
+  `workspace/phase_4.5.2-scripting.md` (roadmap #55 supersedes the earlier
+  v1 "curated presets only" scope).
+- The **`dps` (Aggressive) and `healer` (Support)** built-in scripts ship in
+  every profile's script library as read-only starting points; `Balanced` /
+  `Glass Cannon` / `Tank` earlier listed recipes are deferred presets — the
+  player can reproduce any of them by editing a duplicated built-in.
+- Defaults: party members start on a script (the `healer` built-in for support
+  roles) unless the player assigns otherwise; the player can switch a
+  character to Manual at any time.
 
 ---
 
@@ -97,6 +100,8 @@ scroll back to see why a character made a move.
 
 1. Should autobattle results be skippable to a summary, or always watchable?
 
-Deferred (not v1): player-authored script editor.
+Deferred (not v1): player-authored script **editor** — now superseded by the
+Automation Window shipped in the scripting sprint (this page's §2 no longer
+deferrals note it).
 
 Decision log: `roadmap.md`.

@@ -3,6 +3,8 @@
  * These are the single source of truth for what a Character / Item / etc. is.
  */
 
+import type { CharacterScript, EventPattern } from './scripting/types'
+
 export type StatKey = 'hp' | 'atk' | 'def' | 'mag' | 'res' | 'spd'
 
 export interface StatBlock {
@@ -71,6 +73,9 @@ export interface ClassDef {
   passive?: string
 }
 
+/** How a skill is used by the scripting system (Phase 4.5.2 S7/S8). */
+export type SkillType = 'active' | 'passive'
+
 /** Static definition of a skill. */
 export interface SkillDef {
   id: string
@@ -85,6 +90,15 @@ export interface SkillDef {
   effect?: StatusEffect
   /** Action weight on the CTB queue — higher = slower re-insert (`docs/combat.md` §2). */
   delay?: number
+  /** Scripting system: how the skill is used. Omitted → 'active'. */
+  type?: SkillType
+  /**
+   * Reaction gates this skill is legal in (Phase 4.5.2 S21). Absent / empty =
+   * never usable as a reaction. Enforced by the editor, store, and interpreter.
+   */
+  reactionTo?: EventPattern[]
+  /** Free-form tags for skill-selector filters (S6). */
+  tags?: string[]
 }
 
 /** Static definition of an item (gear template, consumable, or tome). */
@@ -103,6 +117,11 @@ export interface ItemDef {
   /** Gear (weapon/armor) that grants a skill while equipped (Phase 4.5.1). */
   grantsSkillWhenEquipped?: string
   use?: { healHp?: number; healMp?: number }
+  /**
+   * Reaction gates this item is legal in (Phase 4.5.2 S21, `items.md`).
+   * Absent / empty = never usable as a reaction. Same rules as `SkillDef`.
+   */
+  reactionTo?: EventPattern[]
   value: number
 }
 
@@ -155,8 +174,10 @@ export interface Character {
   statBonus?: Partial<StatBlock>
   durability: Durability
   earned: { runs: number; wins: number }
-  /** Autobattle preset for this character; unset = Manual (Phase 4, A5/A10). */
+  /** Autobattle preset for this character; unset = Manual (Phase 4, A5/A10). Deprecated by `scriptId` (kept one release). */
   autobattle?: PlayerAiPresetId
+  /** Phase 4.5.2: assigned scripting library script; unset = Manual. */
+  scriptId?: string
 }
 
 export interface Inventory {
@@ -202,6 +223,8 @@ export interface PlayerProfile {
   shop: ShopStock
   /** Recruitment offers (`docs/phase-3-run-loop-plan.md` §5). */
   recruitment: RecruitOffer[]
+  /** Phase 4.5.2: per-profile scripting library (built-ins seeded on migration). */
+  scriptLibrary: CharacterScript[]
 }
 
 /**

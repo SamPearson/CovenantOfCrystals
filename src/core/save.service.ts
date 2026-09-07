@@ -8,9 +8,11 @@ import { validateSaveFile } from './validation'
 import type { AutobattlePrefs, SaveFile } from './types'
 import { uuid } from './id'
 import { BALANCE } from './data/balance'
+import { BUILT_IN_SCRIPTS, BUILT_IN_SCRIPT_IDS } from './data/scripts'
+import type { CharacterScript } from './scripting/types'
 
 export const SAVE_KEY = 'covenant.of.crystals.save'
-export const SCHEMA_VERSION = 2
+export const SCHEMA_VERSION = 3
 
 function storage(): Storage | null {
   try {
@@ -75,8 +77,14 @@ export function createNewSave(profileId?: string, displayName?: string): SaveFil
       },
       recruitment: [],
       createdAt: Date.now(),
+      scriptLibrary: BUILT_IN_SCRIPTS.map(cloneScript),
     },
   }
+}
+
+/** Deep-clones a script so library entries are independent of the source constant. */
+function cloneScript(s: CharacterScript): CharacterScript {
+  return JSON.parse(JSON.stringify(s)) as CharacterScript
 }
 
 export const AUTOBATTLE_DEFAULTS: AutobattlePrefs = {
@@ -87,15 +95,43 @@ export const AUTOBATTLE_DEFAULTS: AutobattlePrefs = {
 }
 
 /**
- * Schema v1 → v2 default-filling migration (A12): v1 saves have no
- * `profile.autobattle`; fill the defaults and bump the version so the next
- * write persists the v2 shape.
+ * Migration chain. Each step fills the missing shape for its target version
+ * and bumps `schemaVersion`; we re-run from whatever the save reports up to
+ * the current `SCHEMA_VERSION` so older saves self-heal on load.
  */
 function migrateSave(save: SaveFile): SaveFile {
+  if (save.schemaVersion < 2) migrateV1ToV2(save)
+  if (save.schemaVersion < 3) migrateV2ToV3(save)
+  save.schemaVersion = SCHEMA_VERSION
+  return save
+}
+
+/** v1 → v2: fills `profile.autobattle` defaults (A12). */
+function migrateV1ToV2(save: SaveFile): void {
   if (!save.profile.autobattle) save.profile.autobattle = { ...AUTOBATTLE_DEFAULTS }
   else if (typeof save.profile.autobattle.resultDelayMs !== 'number') {
     save.profile.autobattle.resultDelayMs = AUTOBATTLE_DEFAULTS.resultDelayMs
   }
-  save.schemaVersion = SCHEMA_VERSION
-  return save
+  save.schemaVersion = 2
+}
+
+/**
+ * v2 → v3 (Phase 4.5.2, S13): seeds the built-in scripting library and
+ * translates each character's legacy `autobattle` preset into a `scriptId`.
+ * The `autobattle` field is left in place for one release as a fallback.
+ */
+function migrateV2ToV3(save: SaveFile): void {
+  const library = save.profile.scriptLibrary ?? []
+  const byId = new Map(library.map((s) => [s.id, s]))
+  for (const builtin of BUILT_IN_SCRIPTS) {
+    if (!byId.has(builtin.id)) library.push(cloneScript(builtin))
+  }
+  save.profile.scriptLibrary = library
+
+  for (const character of Object.values(save.profile.characters)) {
+    if (character.scriptId) continue
+    if (character.autobattle === 'dps') character.scriptId = BUILT_IN_SCRIPT_IDS.dps
+    else if (character.autobattle === 'healer') character.scriptId = BUILT_IN_SCRIPT_IDS.healer
+  }
+  save.schemaVersion = 3
 }

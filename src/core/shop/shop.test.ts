@@ -13,6 +13,7 @@ import type { PlayerProfile } from '../types'
 import { createRng } from '../rng/rng'
 import {
   ALWAYS_POTIONS,
+  ALWAYS_STAT_SHOTS,
   buyItem,
   canBuyItem,
   canSellItem,
@@ -28,11 +29,14 @@ function profile(): PlayerProfile {
 }
 
 describe('generateShopStock', () => {
-  it('always offers the potions', () => {
+  it('always offers the potions and stat-shots', () => {
     const stock = generateShopStock(createRng(1))
-    expect(stock.always).toEqual([...ALWAYS_POTIONS])
+    expect(stock.always).toEqual([...ALWAYS_POTIONS, ...ALWAYS_STAT_SHOTS])
     for (const id of ALWAYS_POTIONS) {
       expect(getItem(id).type).toBe('consumable')
+    }
+    for (const id of ALWAYS_STAT_SHOTS) {
+      expect(getItem(id).type).toBe('stat-shot')
     }
   })
 
@@ -81,7 +85,7 @@ describe('generateShopStock', () => {
     const before = p.shop
     refreshShopStock(p, createRng(7))
     expect(p.shop).toEqual(generateShopStock(createRng(7)))
-    expect(p.shop.always).toEqual([...ALWAYS_POTIONS])
+    expect(p.shop.always).toEqual([...ALWAYS_POTIONS, ...ALWAYS_STAT_SHOTS])
     expect(p.shop).not.toEqual(before)
   })
 })

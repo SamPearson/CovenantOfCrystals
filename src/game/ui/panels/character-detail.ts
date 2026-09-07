@@ -13,9 +13,8 @@ import {
   roleLabel,
   elementLabel,
 } from '../format'
-import { getProfile, setAutobattle } from '../../../core/store'
+import { getProfile, getScripts, assignScript } from '../../../core/store'
 import { getClass, getItem, getSkill, derivedStats, getSkillPool } from '../../../core'
-import type { PlayerAiPresetId } from '../../../core/types'
 
 export interface DetailAction {
   label: string
@@ -156,7 +155,7 @@ export function buildCharacterDetail(
     scene,
     pad,
     yy,
-    'AUTO BATTLE: how this hero fights. Off = manual · DPS/Healer use battle AI.',
+    'AUTO BATTLE: how this hero fights. Manual = choose every turn.',
     { size: 'xs', color: textMuted, wordWrap: w - pad * 2 },
     view,
   )
@@ -168,31 +167,26 @@ export function buildCharacterDetail(
   // while the stats/skills content scrolls.
   const abY = h - 86
   uiText(scene, pad, abY, 'AUTO BATTLE', { size: 'xs', color: heading }, region.container)
-  const aiOpts: { id: PlayerAiPresetId | undefined; label: string }[] = [
-    { id: undefined, label: 'Off' },
-    { id: 'dps', label: 'DPS' },
-    { id: 'healer', label: 'Healer' },
-  ]
-  let aiX = pad
-  for (const opt of aiOpts) {
-    const selected = c.autobattle === opt.id
-    const btn = makeButton(
-      scene,
-      aiX,
-      abY + 16,
-      opt.label,
-      () => setAutobattle(charId, opt.id),
-      {
-        width: 84,
-        height: 28,
-        fontSize: 'sm',
-        color: selected ? THEME.colors.accentBlue : THEME.colors.accent,
-      },
-      region.container,
-    )
-    if (selected) btn.setDisabled(true)
-    aiX += 90
+
+  // Library-backed script selector: Manual + every script in the library.
+  // A cycle (< / >) keeps the pinned row compact no matter how many scripts
+  // exist. The displayed name resolves via the profile library.
+  const scripts = getScripts()
+  const options: (string | undefined)[] = [undefined, ...scripts.map((s) => s.id)]
+  const curScript = c.scriptId !== undefined && scripts.some((s) => s.id === c.scriptId) ? c.scriptId : undefined
+  const label = curScript === undefined ? 'Manual' : scripts.find((s) => s.id === curScript)?.name ?? 'Manual'
+  const scriptName = uiText(scene, pad + 26 + 6, abY + 16, label, {
+    size: 'sm',
+    color: curScript === undefined ? THEME.colors.textMuted : THEME.colors.text,
+  }, region.container)
+
+  const cycle = (delta: number): void => {
+    const idx = options.indexOf(curScript)
+    const next = options[(idx + delta + options.length) % options.length]
+    assignScript(charId, next)
   }
+  makeButton(scene, pad, abY + 10, '‹', () => cycle(-1), { width: 26, height: 28, fontSize: 'sm' }, region.container)
+  makeButton(scene, pad + 26 + 6 + scriptName.width + 6, abY + 10, '›', () => cycle(1), { width: 26, height: 28, fontSize: 'sm' }, region.container)
 
   // Footer: action buttons pinned to the bottom of the region (fixed layer).
   const ay = h - 44
