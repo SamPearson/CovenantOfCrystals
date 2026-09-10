@@ -6,6 +6,7 @@
 
 import { THEME } from '../theme'
 import { uiText, makeButton, makeBadge, makeScrollRegion } from '../widgets'
+import { showTooltip, hideTooltip } from '../tooltip'
 import {
   durabilityLabel,
   statLabel,
@@ -15,6 +16,14 @@ import {
 } from '../format'
 import { getProfile, getScripts, assignScript } from '../../../core/store'
 import { getClass, getItem, getSkill, derivedStats, getSkillPool } from '../../../core'
+import { describeItem, describeSkill } from '../../../core/tooltips'
+import type { TooltipLine } from '../../../core/tooltips'
+
+interface HoverBand {
+  top: number
+  bottom: number
+  payload: () => TooltipLine[]
+}
 
 export interface DetailAction {
   label: string
@@ -50,6 +59,7 @@ export function buildCharacterDetail(
   const view = region.content
 
   let yy = pad
+  const hoverBands: HoverBand[] = []
 
   const name = uiText(scene, pad, yy, c.name, { size: 'lg' }, view)
   yy += name.height + 8
@@ -96,6 +106,11 @@ export function buildCharacterDetail(
         { size: 'xs', color: textMuted },
         view,
       )
+      hoverBands.push({
+        top: yy,
+        bottom: yy + 20,
+        payload: () => describeItem(item),
+      })
     } else {
       uiText(scene, pad, yy, `${slot.toUpperCase()}  —`, { size: 'sm', color: textMuted }, view)
     }
@@ -136,7 +151,13 @@ export function buildCharacterDetail(
         {},
         view,
       )
-      yy += Math.max(18, tag.height + 6)
+      const rowH = Math.max(18, tag.height + 6)
+      hoverBands.push({
+        top: yy,
+        bottom: yy + rowH,
+        payload: () => describeSkill(getSkill(entry.skillId), { stats }, {}),
+      })
+      yy += rowH
     }
     yy += 4
   }
@@ -208,4 +229,38 @@ export function buildCharacterDetail(
   // Reserve room below the content so the last line can scroll clear of the
   // pinned AUTO BATTLE selector and footer.
   region.setContentHeight(yy + 92)
+
+  // Hover tooltips for the baked content: the scroll texture never sees pointer
+  // events, so listen on the live `layer` and map the pointer back into content
+  // coordinates (`worldToContentY`) to hit-test against the gear/skill bands.
+  let activeBand: HoverBand | null = null
+  let hoverTimer: Phaser.Time.TimerEvent | null = null
+
+  const bandAt = (contentY: number): HoverBand | null =>
+    hoverBands.find((b) => contentY >= b.top && contentY < b.bottom) ?? null
+
+  region.layer.on('pointermove', (pointer: Phaser.Input.Pointer) => {
+    const contentY = region.worldToContentY(pointer.worldY)
+    const band = bandAt(contentY)
+    if (band === activeBand) return
+    activeBand = band
+    if (hoverTimer) hoverTimer.remove(false)
+    hoverTimer = null
+    if (!band) {
+      hideTooltip(scene)
+      return
+    }
+    hoverTimer = scene.time.delayedCall(150, () => {
+      hoverTimer = null
+      const lines = band.payload()
+      if (lines.length > 0) showTooltip(scene, pointer.worldX, pointer.worldY, lines)
+    })
+  })
+
+  region.layer.on('pointerout', () => {
+    if (hoverTimer) hoverTimer.remove(false)
+    hoverTimer = null
+    activeBand = null
+    hideTooltip(scene)
+  })
 }

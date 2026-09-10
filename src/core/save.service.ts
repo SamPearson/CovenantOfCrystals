@@ -9,10 +9,14 @@ import type { AutobattlePrefs, SaveFile } from './types'
 import { uuid } from './id'
 import { BALANCE } from './data/balance'
 import { BUILT_IN_SCRIPTS, BUILT_IN_SCRIPT_IDS } from './data/scripts'
+import { CLASSES } from './data/classes'
 import type { CharacterScript } from './scripting/types'
 
 export const SAVE_KEY = 'covenant.of.crystals.save'
-export const SCHEMA_VERSION = 3
+export const SCHEMA_VERSION = 4
+
+/** All classes are recruitable from the start (sandbox mode, docs/roadmap.md). */
+export const ALL_CLASSES: string[] = CLASSES.map((c) => c.id)
 
 function storage(): Storage | null {
   try {
@@ -59,7 +63,7 @@ export function createNewSave(profileId?: string, displayName?: string): SaveFil
       profileId: profileId ?? uuid(),
       displayName: displayName ?? 'Player',
       gold: BALANCE.economy.startingGold,
-      unlockedClasses: ['knight'],
+      unlockedClasses: ALL_CLASSES.slice(),
       characters: {},
       boxes: [],
       inventory: { items: [], gear: [] },
@@ -102,6 +106,7 @@ export const AUTOBATTLE_DEFAULTS: AutobattlePrefs = {
 function migrateSave(save: SaveFile): SaveFile {
   if (save.schemaVersion < 2) migrateV1ToV2(save)
   if (save.schemaVersion < 3) migrateV2ToV3(save)
+  if (save.schemaVersion < 4) migrateV3ToV4(save)
   save.schemaVersion = SCHEMA_VERSION
   return save
 }
@@ -134,4 +139,17 @@ function migrateV2ToV3(save: SaveFile): void {
     else if (character.autobattle === 'healer') character.scriptId = BUILT_IN_SCRIPT_IDS.healer
   }
   save.schemaVersion = 3
+}
+
+/**
+ * v3 → v4: unlocks the full class roster. Older saves only ever unlocked the
+ * starting class, and sandbox mode wants every class recruitable from the
+ * get-go. Idempotent — only appends classes that are missing.
+ */
+function migrateV3ToV4(save: SaveFile): void {
+  const unlocked = save.profile.unlockedClasses
+  for (const classId of ALL_CLASSES) {
+    if (!unlocked.includes(classId)) unlocked.push(classId)
+  }
+  save.schemaVersion = 4
 }

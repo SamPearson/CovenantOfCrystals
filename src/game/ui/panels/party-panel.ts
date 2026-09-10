@@ -1,11 +1,29 @@
 import { Panel } from './panel'
 import { THEME } from '../theme'
 import { uiText, makeSubpanel } from '../widgets'
-import { durabilityLabel, truncate } from '../format'
+import { attachTooltip } from '../tooltip'
+import { durabilityLabel, truncate, roleLabel, elementLabel } from '../format'
 import { getProfile, mutate } from '../../../core/store'
 import { removeFromParty } from '../../../core/party'
 import { getClass } from '../../../core'
+import type { TooltipLine } from '../../../core/tooltips'
 import { buildCharacterDetail } from './character-detail'
+import { makePortraitSlot, PORTRAIT_SLOT } from '../portrait'
+
+function characterTooltip(charId: string): TooltipLine[] {
+  const profile = getProfile()
+  const c = profile.characters[charId]
+  if (!c) return []
+  const cls = getClass(c.classId)
+  return [
+    { kind: 'title', text: c.name },
+    { kind: 'subtitle', text: `${cls.name} · Lv ${c.level}` },
+    {
+      kind: 'desc',
+      text: `${roleLabel(cls.role)}${cls.element !== 'none' ? ` · ${elementLabel(cls.element)}` : ''} · ${durabilityLabel(c.durability)}`,
+    },
+  ]
+}
 
 export class PartyPanel extends Panel {
   private selected: string | null = null
@@ -31,26 +49,28 @@ export class PartyPanel extends Panel {
       if (charId && profile.characters[charId]) {
         const c = profile.characters[charId]
         const cls = getClass(c.classId)
-        uiText(this.scene, x + pad, cardsY + 10, truncate(c.name, 14), { size: 'md' }, content)
+        const cx = x + cardW / 2
+        makePortraitSlot(this.scene, content, cx - PORTRAIT_SLOT / 2, cardsY + 8, cls.element, cls.name[0])
+        uiText(this.scene, cx, cardsY + 72, truncate(c.name, 12), { size: 'md' }, content).setOrigin(0.5, 0)
         uiText(
           this.scene,
-          x + pad,
-          cardsY + 34,
+          cx,
+          cardsY + 94,
           `${cls.name} · Lv ${c.level}`,
           { size: 'sm', color: THEME.colors.textMuted },
           content,
-        )
+        ).setOrigin(0.5, 0)
         uiText(
           this.scene,
-          x + pad,
-          cardsY + 56,
+          cx,
+          cardsY + 112,
           durabilityLabel(c.durability),
           {
             size: 'xs',
             color: c.durability.kind === 'expires' ? THEME.colors.warn : THEME.colors.good,
           },
           content,
-        )
+        ).setOrigin(0.5, 0)
         const cell = this.scene.add.rectangle(
           x + cardW / 2,
           cardsY + cardH / 2,
@@ -59,7 +79,9 @@ export class PartyPanel extends Panel {
           0x000000,
           0,
         )
-        cell.setInteractive({ useHandCursor: true }).on('pointerdown', () => {
+        cell.setInteractive({ useHandCursor: true })
+        attachTooltip(this.scene, cell, () => characterTooltip(charId))
+        cell.on('pointerdown', () => {
           this.selected = this.selected === charId ? null : charId
           this.refresh()
         })
@@ -67,12 +89,12 @@ export class PartyPanel extends Panel {
       } else {
         uiText(
           this.scene,
-          x + pad,
-          cardsY + 50,
+          x + cardW / 2,
+          cardsY + 60,
           'Empty',
           { size: 'sm', color: THEME.colors.textDim },
           content,
-        )
+        ).setOrigin(0.5, 0)
       }
     }
 

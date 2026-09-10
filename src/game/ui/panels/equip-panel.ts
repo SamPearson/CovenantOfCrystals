@@ -1,12 +1,26 @@
 import { Panel } from './panel'
 import { THEME } from '../theme'
 import { uiText, makeButton, makeSubpanel, makeBadge } from '../widgets'
-import { durabilityLabel, itemTypeLabel, statDeltaText, truncate } from '../format'
+import { attachTooltip } from '../tooltip'
+import { durabilityLabel, itemTypeLabel, statDeltaText, truncate, roleLabel, elementLabel } from '../format'
 import { getProfile, equipItem, unequipItem } from '../../../core/store'
 import { gearStatDeltas, type StatDelta } from '../../../core/equip'
-import { getClass, getItem, derivedStats, getSkillPool, getSkill, type PlayerProfile, type StatKey } from '../../../core'
+import { getClass, getItem, derivedStats, getSkillPool, getSkill, type PlayerProfile, type StatKey, type Character, type ClassDef } from '../../../core'
+import { describeItem, describeSkill } from '../../../core/tooltips'
+import type { TooltipLine } from '../../../core/tooltips'
 
 const STAT_ORDER: StatKey[] = ['hp', 'atk', 'def', 'mag', 'res', 'spd']
+
+function characterTooltip(c: Character, cls: ClassDef): TooltipLine[] {
+  return [
+    { kind: 'title', text: c.name },
+    { kind: 'subtitle', text: `${cls.name} · Lv ${c.level}` },
+    {
+      kind: 'desc',
+      text: `${roleLabel(cls.role)}${cls.element !== 'none' ? ` · ${elementLabel(cls.element)}` : ''} · ${durabilityLabel(c.durability)}`,
+    },
+  ]
+}
 
 function absoluteBonuses(bonus: Partial<Record<StatKey, number>> | undefined): StatDelta[] {
   const out: StatDelta[] = []
@@ -65,6 +79,7 @@ export class EquipPanel extends Panel {
         this.selected = this.selected === charId ? null : charId
         this.refresh()
       })
+      attachTooltip(this.scene, hit, () => characterTooltip(c, cls))
       content.add(hit)
       ry += rowH + 4
     }
@@ -88,6 +103,10 @@ export class EquipPanel extends Panel {
         uiText(this.scene, centerX + 8, sy + 6, slot.toUpperCase(), { size: 'xs', color: THEME.colors.textMuted }, content)
         if (g) {
           const item = getItem(g.itemId)
+          const hit = this.scene.add.rectangle(centerX + centerW / 2, sy + 28, centerW, 56, 0x000000, 0)
+          hit.setInteractive({ useHandCursor: false })
+          content.add(hit)
+          attachTooltip(this.scene, hit, () => describeItem(item, { equippedBy: c.name }))
           uiText(
             this.scene,
             centerX + 8,
@@ -137,7 +156,12 @@ export class EquipPanel extends Panel {
       uiText(this.scene, centerX, ky, 'SKILLS', { size: 'xs', color: THEME.colors.accentBlue }, content)
       ky += 16
       for (const entry of getSkillPool(c)) {
-        uiText(this.scene, centerX, ky, getSkill(entry.skillId).name, { size: 'xs', color: THEME.colors.text }, content)
+        const skill = getSkill(entry.skillId)
+        const hit = this.scene.add.rectangle(centerX + 160, ky + 7, 320, 18, 0x000000, 0)
+        hit.setInteractive({ useHandCursor: false })
+        content.add(hit)
+        attachTooltip(this.scene, hit, () => describeSkill(skill, { stats }, {}))
+        uiText(this.scene, centerX, ky, skill.name, { size: 'xs', color: THEME.colors.text }, content)
         const tag = entry.source === 'native' ? 'native' : entry.source === 'learned' ? 'learned' : 'gear'
         const tagColor =
           entry.source === 'gear'
@@ -216,9 +240,11 @@ export class EquipPanel extends Panel {
         )
       }
 
+      const hit = this.scene.add.rectangle(gearX + gearW / 2, gy + gearRowH / 2, gearW, gearRowH, 0x000000, 0)
+      hit.setInteractive({ useHandCursor: !onChar })
+      attachTooltip(this.scene, hit, () => describeItem(item, { equippedBy: onChar }))
       if (!onChar) {
-        const hit = this.scene.add.rectangle(gearX + gearW / 2, gy + gearRowH / 2, gearW, gearRowH, 0x000000, 0)
-        hit.setInteractive({ useHandCursor: true }).on('pointerdown', () => {
+        hit.on('pointerdown', () => {
           if (!this.selected) {
             this.message = 'Select a character first.'
             this.refresh()
@@ -233,8 +259,8 @@ export class EquipPanel extends Panel {
             this.refresh()
           }
         })
-        content.add(hit)
       }
+      content.add(hit)
       gy += gearRowH + 4
     }
 

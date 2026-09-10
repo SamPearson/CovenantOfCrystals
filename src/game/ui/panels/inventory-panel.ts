@@ -1,9 +1,11 @@
 import { Panel } from './panel'
 import { THEME } from '../theme'
 import { uiText, makeSubpanel, makeBadge } from '../widgets'
+import { attachTooltip } from '../tooltip'
 import { durabilityLabel, itemTypeLabel } from '../format'
 import { getProfile } from '../../../core/store'
 import { getItem, getSkill } from '../../../core'
+import { describeItem } from '../../../core/tooltips'
 
 export class InventoryPanel extends Panel {
   refresh(): void {
@@ -28,6 +30,11 @@ export class InventoryPanel extends Panel {
       const item = getItem(g.itemId)
       const onChar = equippedBy.get(g.id)
       makeSubpanel(this.scene, content, pad, gy, colW, rowH)
+      const hit = this.scene.add.rectangle(pad, gy, colW, rowH, 0x000000, 0)
+      hit.setOrigin(0)
+      hit.setInteractive({ useHandCursor: false })
+      content.add(hit)
+      attachTooltip(this.scene, hit, () => describeItem(item, { equippedBy: onChar }))
       uiText(
         this.scene,
         pad + 8,
@@ -55,6 +62,11 @@ export class InventoryPanel extends Panel {
     for (const entry of profile.inventory.items) {
       const item = getItem(entry.itemId)
       makeSubpanel(this.scene, content, itemsX, iy, colW, itemRowH)
+      const hit = this.scene.add.rectangle(itemsX, iy, colW, itemRowH, 0x000000, 0)
+      hit.setOrigin(0)
+      hit.setInteractive({ useHandCursor: false })
+      content.add(hit)
+      attachTooltip(this.scene, hit, () => describeItem(item))
       uiText(this.scene, itemsX + 8, iy + 6, item.name, { size: 'sm' }, content)
       uiText(
         this.scene,

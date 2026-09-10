@@ -6,6 +6,7 @@ import {
   clearSave,
   SAVE_KEY,
   SCHEMA_VERSION,
+  ALL_CLASSES,
 } from './save.service'
 import type { SaveFile } from './types'
 
@@ -49,7 +50,7 @@ describe('createNewSave', () => {
     expect(save.schemaVersion).toBe(SCHEMA_VERSION)
     expect(save.profile.profileId).toBe('prof-1')
     expect(save.profile.displayName).toBe('Ada')
-    expect(save.profile.unlockedClasses).toEqual(['knight'])
+    expect(save.profile.unlockedClasses).toEqual(ALL_CLASSES)
     expect(save.profile.boxes).toEqual([])
   })
 
@@ -96,6 +97,29 @@ describe('schema stability', () => {
     save.profile.gold = 42
     writeSave(save)
     expect(loadSave()?.profile.gold).toBe(42)
+  })
+})
+
+describe('schema v3 → v4 migration', () => {
+  it('unlocks the full class roster for a v3 save', () => {
+    const v3 = createNewSave('prof-1', 'Ada')
+    v3.schemaVersion = 3
+    v3.profile.unlockedClasses = ['knight']
+    writeSave({ ...v3 } as SaveFile)
+
+    const loaded = loadSave()
+    expect(loaded?.schemaVersion).toBe(SCHEMA_VERSION)
+    expect(loaded?.profile.unlockedClasses).toEqual(ALL_CLASSES)
+  })
+
+  it('is idempotent and preserves any already-unlocked extra classes', () => {
+    const v3 = createNewSave('prof-1', 'Ada')
+    v3.schemaVersion = 3
+    v3.profile.unlockedClasses = ['knight', 'mage']
+    writeSave({ ...v3 } as SaveFile)
+
+    const loaded = loadSave()
+    expect(loaded?.profile.unlockedClasses.slice().sort()).toEqual([...ALL_CLASSES].sort())
   })
 })
 

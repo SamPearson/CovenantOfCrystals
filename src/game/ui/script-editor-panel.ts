@@ -71,6 +71,7 @@ export function showScriptEditor(id: string): void {
     }
   }
   const el = ensureRoot()
+  applyCssVars()
   el.classList.remove('hidden')
   if (backdrop) backdrop.classList.remove('hidden')
   render()
@@ -131,7 +132,10 @@ function ensureRoot(): HTMLDivElement {
 }
 
 function onKeyDown(e: KeyboardEvent): void {
-  if (e.key === 'Escape') hideScriptEditor()
+  if (e.key !== 'Escape') return
+  if (e.target instanceof HTMLSelectElement) return
+  if (e.defaultPrevented) return
+  hideScriptEditor()
 }
 
 function persist(): void {
@@ -308,7 +312,10 @@ function button(labelText: string, className: string, onClick: () => void): HTML
   el.type = 'button'
   el.className = className
   el.textContent = labelText
-  el.addEventListener('click', onClick)
+  el.addEventListener('click', (e) => {
+    e.stopPropagation()
+    onClick()
+  })
   return el
 }
 
@@ -904,6 +911,9 @@ function reactionEditor(r: ReactionRule, setReaction: (r: ReactionRule) => void)
   ifHead.textContent = 'IF'
   ifSec.append(ifHead, ifList, addCond)
   wrap.appendChild(ifSec)
+
+  wrap.appendChild(targetEditor(r.target, (t) => setReaction({ ...r, target: t })))
+  wrap.appendChild(actionEditor(r.action, (a) => setReaction({ ...r, action: a }), r.gate))
 
   const delayRow = div('se-ops')
   delayRow.appendChild(text('Delay (CTB turns, 0 = instant)'))

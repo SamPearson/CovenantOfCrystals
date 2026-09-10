@@ -91,7 +91,10 @@ function ensureRoot(): HTMLDivElement {
 }
 
 function onKeyDown(e: KeyboardEvent): void {
-  if (e.key === 'Escape') hideThemeEditor()
+  if (e.key !== 'Escape') return
+  if (e.target instanceof HTMLSelectElement) return
+  if (e.defaultPrevented) return
+  hideThemeEditor()
 }
 
 function render(): void {

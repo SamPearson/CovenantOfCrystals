@@ -1,10 +1,12 @@
 import { Panel } from './panel'
 import { THEME } from '../theme'
 import { uiText, makeButton, makeSubpanel, type Button } from '../widgets'
+import { attachTooltip } from '../tooltip'
 import { durabilityLabel, itemTypeLabel, truncate } from '../format'
 import { getProfile, mutate } from '../../../core/store'
 import { canBuyItem, buyItem, canSellItem, sellItem } from '../../../core/shop/shop'
 import { getItem } from '../../../core'
+import { describeItem } from '../../../core/tooltips'
 import type { ItemDef } from '../../../core/types'
 
 /**
@@ -46,6 +48,11 @@ export class ShopPanel extends Panel {
       const ry = listY + 16 + row * (rowH + gap)
       const check = canBuyItem(profile, item.id)
       makeSubpanel(this.scene, content, cx, ry, cellW, rowH)
+      const hit = this.scene.add.rectangle(cx, ry, cellW, rowH, 0x000000, 0)
+      hit.setOrigin(0)
+      hit.setInteractive({ useHandCursor: false })
+      content.add(hit)
+      attachTooltip(this.scene, hit, () => describeItem(item))
       uiText(
         this.scene,
         cx + 6,
@@ -100,6 +107,11 @@ export class ShopPanel extends Panel {
       const check = canSellItem(profile, g.id)
       const onChar = equippedBy.get(g.id)
       makeSubpanel(this.scene, content, sellX, sy, colW, rowH)
+      const hit = this.scene.add.rectangle(sellX, sy, colW, rowH, 0x000000, 0)
+      hit.setOrigin(0)
+      hit.setInteractive({ useHandCursor: false })
+      content.add(hit)
+      attachTooltip(this.scene, hit, () => describeItem(item, { equippedBy: onChar }))
       const name = uiText(
         this.scene,
         sellX + 8,

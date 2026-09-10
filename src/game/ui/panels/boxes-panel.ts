@@ -2,10 +2,28 @@ import Phaser from 'phaser'
 import { Panel } from './panel'
 import { THEME } from '../theme'
 import { uiText, makeButton } from '../widgets'
-import { truncate } from '../format'
+import { attachTooltip } from '../tooltip'
+import { truncate, durabilityLabel, roleLabel, elementLabel } from '../format'
 import { getProfile, mutate } from '../../../core/store'
 import { isInParty, isPartyFull, addToParty } from '../../../core/party'
+import { getClass } from '../../../core'
+import type { TooltipLine } from '../../../core/tooltips'
 import { buildCharacterDetail } from './character-detail'
+
+function characterTooltip(charId: string): TooltipLine[] {
+  const profile = getProfile()
+  const c = profile.characters[charId]
+  if (!c) return []
+  const cls = getClass(c.classId)
+  return [
+    { kind: 'title', text: c.name },
+    { kind: 'subtitle', text: `${cls.name} · Lv ${c.level}` },
+    {
+      kind: 'desc',
+      text: `${roleLabel(cls.role)}${cls.element !== 'none' ? ` · ${elementLabel(cls.element)}` : ''} · ${durabilityLabel(c.durability)}`,
+    },
+  ]
+}
 
 export interface BoxesPanelOptions {
   onEquipCharacter: (charId: string) => void
@@ -91,6 +109,7 @@ export class BoxesPanel extends Panel {
 
       if (hasChar) {
         const c = profile.characters[charId]
+        attachTooltip(this.scene, cell, () => characterTooltip(charId))
         uiText(this.scene, cx, cy, truncate(c?.name ?? '?', 7), { size: 'xs' }, content).setOrigin(0.5, 0.5)
         cell
           .setInteractive({ useHandCursor: true })

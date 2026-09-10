@@ -17,11 +17,13 @@ import Phaser from 'phaser'
 import { THEME, setTheme } from '../ui/theme'
 import { initThemes, getActiveTheme } from '../../core/themes'
 import { uiText, makePanel, makeButton } from '../ui/widgets'
+import { attachTooltip } from '../ui/tooltip'
 import { STONE_BG_KEY, createStoneTextures } from '../ui/textures'
 import { initStore, getProfile } from '../../core/store'
 import { getItem } from '../../core/data'
 import { findGearById } from '../../core/inventory'
-import type { RunResult } from '../../core/types'
+import { describeItem, type TooltipLine } from '../../core/tooltips'
+import type { ItemDef, RunResult } from '../../core/types'
 
 /** Data ResultScene accepts from RunScene at run-end. */
 export interface ResultSceneData {
@@ -110,8 +112,12 @@ export class ResultScene extends Phaser.Scene {
     if (drops.length > 0) {
       uiText(this, cx, y, 'Loot kept:', { size: 'md', color: THEME.colors.textMuted }, undefined)
       y += 24
-      for (const line of drops) {
-        uiText(this, cx + 18, y, line, { size: 'sm', color: THEME.colors.text }, undefined)
+      for (const drop of drops) {
+        uiText(this, cx + 18, y, drop.text, { size: 'sm', color: THEME.colors.text }, undefined)
+        const hit = this.add.rectangle(cx + 18, y, PANEL_W - (cx + 18) * 2, 18, 0x000000, 0)
+        hit.setOrigin(0)
+        hit.setInteractive({ useHandCursor: false })
+        attachTooltip(this, hit, () => drop.lines())
         y += 20
       }
       y += 6
@@ -153,21 +159,27 @@ export class ResultScene extends Phaser.Scene {
     )
   }
 
-  /** Item/gear names kept from the run, each on its own summary line. */
-  private describeDrops(result: RunResult): string[] {
-    const lines: string[] = []
+  /** Item/gear names kept from the run, each with a tooltip. */
+  private describeDrops(result: RunResult): { text: string; lines: () => TooltipLine[] }[] {
+    const drops: { text: string; lines: () => TooltipLine[] }[] = []
     const countByItem = new Map<string, number>()
     for (const itemId of result.itemsBanked) countByItem.set(itemId, (countByItem.get(itemId) ?? 0) + 1)
     for (const [itemId, count] of countByItem) {
-      const name = getItem(itemId).name
-      lines.push(count > 1 ? `${name} \u00d7${count}` : name)
+      const item = getItem(itemId)
+      drops.push({
+        text: count > 1 ? `${item.name} \u00d7${count}` : item.name,
+        lines: () => describeItem(item),
+      })
     }
     for (const gearId of result.gearBanked) {
       const gear = findGearById(getProfile(), gearId)
       if (!gear) continue
-      const name = getItem(gear.itemId).name
-      lines.push(`${name} (gear)`)
+      const item: ItemDef = getItem(gear.itemId)
+      drops.push({
+        text: `${item.name} (gear)`,
+        lines: () => describeItem(item),
+      })
     }
-    return lines
+    return drops
   }
 }

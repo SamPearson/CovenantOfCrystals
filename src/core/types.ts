@@ -178,6 +178,8 @@ export interface Character {
   autobattle?: PlayerAiPresetId
   /** Phase 4.5.2: assigned scripting library script; unset = Manual. */
   scriptId?: string
+  /** Per-character auto/manual toggle that persists across battles. 'auto' = use scriptId; 'manual' = player control. */
+  scriptMode?: 'auto' | 'manual'
 }
 
 export interface Inventory {

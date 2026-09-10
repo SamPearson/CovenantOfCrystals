@@ -272,6 +272,16 @@ export function assignScript(characterId: string, scriptId: string | undefined):
   }
   mutate((profile) => {
     profile.characters[characterId]!.scriptId = scriptId
+    profile.characters[characterId]!.scriptMode = scriptId ? 'auto' : 'manual'
+  })
+}
+
+/** Persists the per-character auto/manual toggle for script-based autobattle. */
+export function setScriptMode(characterId: string, mode: 'auto' | 'manual'): void {
+  const character = current.profile.characters[characterId]
+  if (!character) throw new Error(`Character not found: ${characterId}`)
+  mutate((profile) => {
+    profile.characters[characterId]!.scriptMode = mode
   })
 }
 

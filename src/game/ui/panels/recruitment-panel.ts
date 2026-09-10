@@ -1,10 +1,32 @@
 import { Panel } from './panel'
 import { THEME } from '../theme'
 import { uiText, makeButton, makeSubpanel, type Button } from '../widgets'
+import { attachTooltip } from '../tooltip'
 import { roleLabel, elementLabel, statList, statLabel, durabilityLabel } from '../format'
 import { getProfile, mutate } from '../../../core/store'
 import { canRecruit, recruit } from '../../../core/shop/recruitment'
-import { getClass, derivedStats } from '../../../core'
+import { getClass, derivedStats, getSkill } from '../../../core'
+import { describeSkill, type TooltipLine } from '../../../core/tooltips'
+
+function characterTooltip(offerId: string): TooltipLine[] {
+  const profile = getProfile()
+  const offer = profile.recruitment.find((o) => o.id === offerId)
+  if (!offer) return []
+  const c = offer.character
+  const cls = getClass(c.classId)
+  const stats = derivedStats(c)
+  return [
+    { kind: 'title', text: c.name },
+    { kind: 'subtitle', text: `${cls.name} · Lv ${c.level}` },
+    { kind: 'desc', text: `${roleLabel(cls.role)}${cls.element !== 'none' ? ` · ${elementLabel(cls.element)}` : ''} · ${durabilityLabel(c.durability)}` },
+    { kind: 'stat', key: 'hp', delta: stats.hp },
+    { kind: 'stat', key: 'atk', delta: stats.atk },
+    { kind: 'stat', key: 'def', delta: stats.def },
+    { kind: 'stat', key: 'mag', delta: stats.mag },
+    { kind: 'stat', key: 'res', delta: stats.res },
+    { kind: 'stat', key: 'spd', delta: stats.spd },
+  ]
+}
 
 /**
  * Phase 3 M7 recruitment tab (decision S6): 2–3 random level-1 characters of
@@ -57,7 +79,9 @@ export class RecruitmentPanel extends Panel {
         content,
       )
       const hit = this.scene.add.rectangle(pad + listW / 2, ry + rowH / 2, listW, rowH, 0x000000, 0)
-      hit.setInteractive({ useHandCursor: true }).on('pointerdown', () => {
+      hit.setInteractive({ useHandCursor: true })
+      attachTooltip(this.scene, hit, () => characterTooltip(offer.id))
+      hit.on('pointerdown', () => {
         this.selected = this.selected === offer.id ? null : offer.id
         this.refresh()
       })
@@ -118,7 +142,15 @@ export class RecruitmentPanel extends Panel {
         const startY = listY + 96
         for (let i = 0; i < trained.length; i++) {
           const entry = trained[i]
-          if (entry) uiText(this.scene, detailX, startY + i * 18, `· ${entry.skillId}`, { size: 'xs' }, content)
+          if (entry) {
+            const skill = getSkill(entry.skillId)
+            uiText(this.scene, detailX, startY + i * 18, `· ${skill.name}`, { size: 'xs' }, content)
+            const hit = this.scene.add.rectangle(detailX + 60, startY + i * 18 + 8, detailW - 60, 16, 0x000000, 0)
+            hit.setOrigin(0, 0)
+            hit.setInteractive({ useHandCursor: false })
+            content.add(hit)
+            attachTooltip(this.scene, hit, () => describeSkill(skill, { stats }, {}))
+          }
         }
       }
     } else if (this.justRecruited && profile.characters[this.justRecruited]) {

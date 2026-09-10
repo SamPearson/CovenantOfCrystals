@@ -132,6 +132,8 @@ export function makeSubpanel(
 
 export interface Button {
   container: Phaser.GameObjects.Container
+  /** The interactive click surface — handy for hover/tooltip wiring. */
+  hit: Phaser.GameObjects.Rectangle
   setDisabled(disabled: boolean): void
   destroy(): void
 }
@@ -177,12 +179,10 @@ export function makeButton(
       rect.setFillStyle(THEME.colors.disabled)
       text.setColor(THEME.colors.textDim)
       border.setStrokeStyle(1, THEME.colors.border, 0.4)
-      rect.disableInteractive()
     } else {
       rect.setFillStyle(baseColor)
       text.setColor(labelColor)
       border.setStrokeStyle(1, THEME.colors.borderLight, 0.6)
-      rect.setInteractive({ useHandCursor: true })
     }
   }
 
@@ -202,6 +202,7 @@ export function makeButton(
 
   return {
     container,
+    hit: rect,
     setDisabled(value: boolean) {
       disabled = value
       applyDisabled()
@@ -311,6 +312,16 @@ export interface ScrollRegion {
   content: Phaser.GameObjects.Container
   /** Tells the region the full height of its content so it can clamp + size the thumb. */
   setContentHeight(height: number): void
+  /**
+   * Interactive transparent rect covering the viewport (top stack of `container`).
+   * Content children are baked into the viewport texture and never receive pointer
+   * events, so hover tooltips listen here and map positions with `worldToContentY`.
+   */
+  layer: Phaser.GameObjects.Rectangle
+  /** Current vertical scroll offset (0 at top, negative when scrolled down). */
+  scrollOffset(): number
+  /** Maps a world-space Y to content-space Y (i.e. before scrolling is applied). */
+  worldToContentY(worldY: number): number
   destroy(): void
 }
 
@@ -358,6 +369,12 @@ export function makeScrollRegion(
   const thumb = scene.add.rectangle(trackX, 4, 4, h - 10, t.borderLight, 0.85)
   container.add([track, thumb])
 
+  // Live hit surface. Content children are baked into the viewport texture and
+  // can never receive pointer events, so this transparent rect carries the
+  // interactive layer for the whole region (hover, drag, wheel).
+  const layer = scene.add.rectangle(0, 0, w, h, 0x000000, 0).setOrigin(0, 0)
+  container.add(layer)
+
   let scrollY = 0
   let contentH = h
 
@@ -399,24 +416,33 @@ export function makeScrollRegion(
 
   let dragStartY = 0
   let dragStartScroll = 0
-  bg.setInteractive({ useHandCursor: false, draggable: true })
-  bg.on(
+  layer.setInteractive({ useHandCursor: false, draggable: true })
+  layer.on(
     'wheel',
     (_pointer: Phaser.Input.Pointer, _deltaX: number, deltaY: number) => {
       setScroll(scrollY - deltaY)
     },
   )
-  bg.on('dragstart', (pointer: Phaser.Input.Pointer) => {
+  layer.on('dragstart', (pointer: Phaser.Input.Pointer) => {
     dragStartY = pointer.y
     dragStartScroll = scrollY
   })
-  bg.on('drag', (pointer: Phaser.Input.Pointer) => {
+  layer.on('drag', (pointer: Phaser.Input.Pointer) => {
     setScroll(dragStartScroll + (pointer.y - dragStartY))
   })
+
+  const topY = (): number => image.getWorldTransformMatrix().getY(0, 0)
 
   return {
     container,
     content,
+    layer,
+    scrollOffset(): number {
+      return scrollY
+    },
+    worldToContentY(worldY: number): number {
+      return worldY - topY() - scrollY
+    },
     setContentHeight(height: number) {
       contentH = height
       setScroll(scrollY)

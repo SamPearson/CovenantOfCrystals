@@ -41,6 +41,8 @@ import { hashString } from '../../core/rng/rng'
 import { RUN_LENGTHS } from '../../core/runs/run-gen'
 import { shouldStopBeforeAdvance } from '../../core/runs/autobattle'
 import { getItem, getSkill } from '../../core/data'
+import { attachTooltip } from '../ui/tooltip'
+import { describeItem } from '../../core/tooltips'
 import type { ActiveRun, EnemyDef, RunNode, RunResult } from '../../core/types'
 import type { BattleResult } from '../../core/combat/types'
 
@@ -401,6 +403,11 @@ export class RunScene extends Phaser.Scene {
       const item = getItem(entry.itemId)
       const skill = item.grantsSkill ? getSkill(item.grantsSkill) : null
       uiText(this, 24, y, `${item.name}  \u00d7${entry.count}`, { size: 'sm', color: THEME.colors.text }, panel)
+      const hit = this.add.rectangle(24, y, panelW - 48, 20, 0x000000, 0)
+      hit.setOrigin(0)
+      hit.setInteractive({ useHandCursor: false })
+      panel.add(hit)
+      attachTooltip(this, hit, () => describeItem(item))
       let bx = 24
       for (const member of members) {
         const b = makeButton(

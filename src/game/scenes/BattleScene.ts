@@ -11,30 +11,32 @@
  */
 
 import Phaser from 'phaser'
-import { THEME, colorHex, hexColor, setTheme } from '../ui/theme'
+import { THEME, colorHex, hexColor, setTheme, elementColor } from '../ui/theme'
 import { initThemes, getActiveTheme } from '../../core/themes'
 import { uiText, makePanel, makeSubpanel, makeButton, makeBadge, makeScrollRegion } from '../ui/widgets'
 import type { Button, ScrollRegion } from '../ui/widgets'
 import { STONE_BG_KEY, createStoneTextures } from '../ui/textures'
-import { truncate } from '../ui/format'
-import { initStore, getProfile, mutate, getScript } from '../../core/store'
+import { truncate, elementLabel } from '../ui/format'
+import { initStore, getProfile, mutate, getScript, setScriptMode } from '../../core/store'
 import { removeItem } from '../../core/inventory'
 import { createBattle, performAction, chooseEnemyAction, choosePartyAction, getBattleResult } from '../../core/combat/battle'
-import { defaultPresetFor } from '../../core/data/ai-presets'
 import { shouldStopBeforeAdvance } from '../../core/runs/autobattle'
 import { chooseScriptedAction, buildScriptContext } from '../../core/scripting/interpreter'
 import { BUILT_IN_DPS, BUILT_IN_HEALER } from '../../core/data/scripts'
 import type { CharacterScript } from '../../core/scripting/types'
-import type { PlayerAiPresetId, RunNodeType } from '../../core/types'
+import type { RunNodeType } from '../../core/types'
 import { peekNext, timeToNextTurn, compareEntries } from '../../core/combat/timeline'
 import { createRng } from '../../core/rng/rng'
 import { createTicker } from '../../core/ticker'
 import type { Ticker, ScheduledTask } from '../../core/ticker'
 import { BALANCE } from '../../core/data/balance'
-import { getSkill, getItem } from '../../core/data'
+import { getSkill, getItem, getClass } from '../../core/data'
 import { scriptedSquad, partyForBattle, partyByIds } from '../battle/battle-setup'
 import { snapshotVitals, diffVitals } from '../battle/battle-vitals'
 import { statusIcon } from '../battle/status-icons'
+import { attachTooltip } from '../ui/tooltip'
+import { describeSkill, describeItem } from '../../core/tooltips'
+import type { TooltipLine } from '../../core/tooltips'
 import type { BattleAction, BattleActor, BattleResult, BattleState } from '../../core/combat/types'
 import type { EnemyDef } from '../../core/types'
 
@@ -73,6 +75,7 @@ export class BattleScene extends Phaser.Scene {
   private cardCenters = new Map<string, { x: number; y: number }>()
   private actionButtons: Button[] = []
   private itemMode = false
+  private skillMode = false
   /** Target-picking state for attack / skill / item actions that need a manual target. */
   private pendingTarget: {
     targetSide: 'ally' | 'enemy'
@@ -85,8 +88,8 @@ export class BattleScene extends Phaser.Scene {
   private enemyCards: Phaser.GameObjects.Container[] = []
   private partyCards: Phaser.GameObjects.Container[] = []
 
-  /** Per-actor autobattle mode for this battle: a preset id = Auto, 'manual' = Manual. */
-  private mode = new Map<string, PlayerAiPresetId | 'manual'>()
+  /** Per-actor autobattle mode for this battle: 'auto' = use script, 'manual' = player control. */
+  private mode = new Map<string, 'auto' | 'manual'>()
   private cardToggles: Button[] = []
   private partyToggle?: Button
 
@@ -171,7 +174,7 @@ export class BattleScene extends Phaser.Scene {
     for (const actor of Object.values(this.battle.actors)) {
       if (actor.side !== 'player') continue
       const ch = getProfile().characters[actor.id]
-      this.mode.set(actor.id, ch?.autobattle ?? 'manual')
+      this.mode.set(actor.id, ch?.scriptMode === 'auto' ? 'auto' : 'manual')
     }
     // M7 — seed every player actor with the party's usable consumable pool
     // (potions + scrolls). The shared pool is mirrored onto each actor so
@@ -297,8 +300,8 @@ export class BattleScene extends Phaser.Scene {
           }
           const script = this.resolveAutoScript(next.actorId)
           const action = chooseScriptedAction(script, buildScriptContext(this.battle, next.actorId), this.rng)
-          const fallback = this.mode.get(next.actorId)
-          this.dispatch(action ?? choosePartyAction(this.battle, next.actorId, fallback === 'manual' ? 'dps' : (fallback ?? 'dps'), this.rng))
+          const ch = getProfile().characters[next.actorId]
+          this.dispatch(action ?? choosePartyAction(this.battle, next.actorId, ch?.autobattle ?? 'dps', this.rng))
         })
       } else {
         this.busy = false
@@ -386,7 +389,7 @@ export class BattleScene extends Phaser.Scene {
     const c = getProfile().characters[actorId]
     const lib = c?.scriptId ? getScript(c.scriptId) : undefined
     if (lib) return lib
-    const preset = this.mode.get(actorId) ?? c?.autobattle ?? 'dps'
+    const preset = c?.autobattle ?? 'dps'
     return preset === 'healer' ? BUILT_IN_HEALER : BUILT_IN_DPS
   }
 
@@ -400,19 +403,16 @@ export class BattleScene extends Phaser.Scene {
     if (!c) return undefined
     const lib = c.scriptId ? getScript(c.scriptId) : undefined
     if (lib) return lib
-    const preset = this.mode.get(actorId) ?? c.autobattle ?? 'dps'
+    const preset = c.autobattle ?? 'dps'
     return preset === 'healer' ? BUILT_IN_HEALER : BUILT_IN_DPS
   }
 
-  /** Flip a single character between its autobattle preset and Manual (A10). */
+  /** Flip a single character between auto and manual, persisting the choice (A10). */
   private toggleActor(actorId: string): void {
     const cur = this.mode.get(actorId)
-    if (cur === 'manual') {
-      const c = getProfile().characters[actorId]
-      this.mode.set(actorId, c?.autobattle ?? (c ? defaultPresetFor(c) : 'dps'))
-    } else {
-      this.mode.set(actorId, 'manual')
-    }
+    const next = cur === 'manual' ? 'auto' : 'manual'
+    this.mode.set(actorId, next)
+    setScriptMode(actorId, next)
     this.render()
   }
 
@@ -420,13 +420,10 @@ export class BattleScene extends Phaser.Scene {
   private toggleParty(): void {
     const players = Object.values(this.battle.actors).filter((a) => a.side === 'player')
     const anyManual = players.some((a) => this.mode.get(a.id) === 'manual')
+    const next = anyManual ? 'auto' : 'manual'
     for (const a of players) {
-      if (anyManual) {
-        const c = getProfile().characters[a.id]
-        this.mode.set(a.id, c?.autobattle ?? (c ? defaultPresetFor(c) : 'dps'))
-      } else {
-        this.mode.set(a.id, 'manual')
-      }
+      this.mode.set(a.id, next)
+      setScriptMode(a.id, next)
     }
     this.render()
   }
@@ -477,8 +474,19 @@ export class BattleScene extends Phaser.Scene {
       makeBadge(this, w - 40, 6, 'DEF', colorHex(t.accentBlue), { width: 32, height: 18 }, card)
     }
 
-    const sideLabel = actor.side === 'enemy' ? 'Enemy' : 'Player'
-    const sub = uiText(this, 8, 22, sideLabel, { size: 'xs', color: t.textMuted }, card)
+    const elem = actor.element ?? 'none'
+    let subText: string
+    let subColor: string
+    if (actor.side === 'player') {
+      const ch = getProfile().characters[actor.id]
+      const cls = ch ? getClass(ch.classId) : null
+      subText = cls ? cls.name : elementLabel(elem)
+      subColor = elementColor(cls ? cls.element : elem)
+    } else {
+      subText = elementLabel(elem)
+      subColor = elementColor(elem)
+    }
+    const sub = uiText(this, 8, 22, subText, { size: 'xs', color: subColor }, card)
     sub.setOrigin(0, 0)
 
     this.buildHpBar(actor, w, card)
@@ -488,8 +496,8 @@ export class BattleScene extends Phaser.Scene {
 
     if (actor.side === 'player' && !actor.ko) {
       const m = this.mode.get(actor.id)
-      const isAuto = m !== undefined && m !== 'manual'
-      const toggleLabel = isAuto ? (m as PlayerAiPresetId).toUpperCase() : 'MANUAL'
+      const isAuto = m === 'auto'
+      const toggleLabel = isAuto ? 'AUTO' : 'MANUAL'
       const toggle = makeButton(
         this,
         6,
@@ -578,6 +586,7 @@ export class BattleScene extends Phaser.Scene {
     const actor = this.currentActorId ? this.battle.actors[this.currentActorId] : undefined
     if (!actor || this.busy) {
       this.itemMode = false
+      this.skillMode = false
       this.pendingTarget = null
       this.actionPrompt.setText(this.busy ? 'Enemy acting…' : '')
       return
@@ -585,6 +594,7 @@ export class BattleScene extends Phaser.Scene {
 
     if (actor.side !== 'player') {
       this.itemMode = false
+      this.skillMode = false
       this.pendingTarget = null
       return
     }
@@ -594,13 +604,14 @@ export class BattleScene extends Phaser.Scene {
     const btnH = THEME.button.height
     let bx = pad
     let by = 40
-    const addButton = (label: string, onClick: () => void, enabled = true): void => {
+    const addButton = (label: string, onClick: () => void, enabled = true, tooltip?: () => TooltipLine[]): void => {
       if (bx + btnW > ACTION_PANEL_W - pad) {
         bx = pad
         by += btnH + 8
       }
       const btn = makeButton(this, bx, by, label, onClick, { width: btnW, height: btnH }, this.actionPanel)
       btn.setDisabled(!enabled)
+      if (tooltip) attachTooltip(this, btn.hit, tooltip)
       this.actionButtons.push(btn)
       bx += btnW + 8
     }
@@ -620,10 +631,32 @@ export class BattleScene extends Phaser.Scene {
         if (entry.count <= 0) continue
         const item = getItem(entry.itemId)
         if (!item.use && !item.castSkill) continue
-        addButton(`×${entry.count} ${truncate(item.name, 10)}`, () => this.selectItem(entry.itemId))
+        addButton(
+          `×${entry.count} ${truncate(item.name, 10)}`,
+          () => this.selectItem(entry.itemId),
+          true,
+          () => describeItem(item),
+        )
       }
       addButton('Cancel', () => {
         this.itemMode = false
+        this.render()
+      })
+      return
+    }
+
+    if (this.skillMode) {
+      this.actionPrompt.setText(`${actor.name} — choose a skill.`)
+      for (const skillId of actor.skills ?? []) {
+        const skill = getSkill(skillId)
+        const onCooldown = (actor.cooldowns?.[skillId] ?? 0) > 0
+        const affordable = actor.mp >= skill.cost
+        addButton(truncate(skill.name, 14), () => this.selectSkill(skillId), !onCooldown && affordable, () =>
+          describeSkill(skill, { stats: actor.stats }, { mp: actor.mp }),
+        )
+      }
+      addButton('Cancel', () => {
+        this.skillMode = false
         this.render()
       })
       return
@@ -636,25 +669,41 @@ export class BattleScene extends Phaser.Scene {
       const item = getItem(entry.itemId)
       return !!item.use || !!item.castSkill
     })
-    const actions: { kind: BattleAction['kind']; skillId?: string; label: string; enabled: boolean }[] = [
-      { kind: 'attack', label: 'Attack', enabled: true },
-      { kind: 'defend', label: 'Defend', enabled: true },
-      { kind: 'item', label: 'Item', enabled: hasItems },
+    const basicAttack: TooltipLine[] = [
+      { kind: 'subtitle', text: 'Basic attack' },
+      { kind: 'desc', text: `Strike one enemy with your weapon (${BALANCE.basicAttackPower} weapon power).` },
     ]
-    for (const skillId of (actor.skills ?? []).slice(0, 6)) {
-      const skill = getSkill(skillId)
-      const onCooldown = (actor.cooldowns?.[skillId] ?? 0) > 0
-      const affordable = actor.mp >= skill.cost
-      actions.push({ kind: 'skill', skillId, label: skill.name, enabled: !onCooldown && affordable })
-    }
+    const defend: TooltipLine[] = [
+      { kind: 'subtitle', text: 'Defend' },
+      { kind: 'desc', text: 'Take a defensive stance this turn, halving all incoming damage.' },
+    ]
+    const itemPick: TooltipLine[] = [
+      { kind: 'subtitle', text: 'Item' },
+      { kind: 'desc', text: 'Use a consumable from your bag during this turn.' },
+    ]
+    const skillPick: TooltipLine[] = [
+      { kind: 'subtitle', text: 'Skills' },
+      { kind: 'desc', text: 'Cast one of your character\u2019s skills this turn.' },
+    ]
+    const hasSkills = (actor.skills ?? []).length > 0
+    const actions: { kind: BattleAction['kind']; label: string; enabled: boolean; tooltip?: () => TooltipLine[] }[] = [
+      { kind: 'attack', label: 'Attack', enabled: true, tooltip: () => basicAttack },
+      { kind: 'defend', label: 'Defend', enabled: true, tooltip: () => defend },
+      { kind: 'skill', label: 'Skills', enabled: hasSkills, tooltip: () => skillPick },
+      { kind: 'item', label: 'Item', enabled: hasItems, tooltip: () => itemPick },
+    ]
 
     for (const a of actions) {
-      const skillId = a.skillId
       addButton(
         truncate(a.label, 14),
         () => {
           if (a.kind === 'item') {
             this.itemMode = true
+            this.render()
+            return
+          }
+          if (a.kind === 'skill') {
+            this.skillMode = true
             this.render()
             return
           }
@@ -664,24 +713,10 @@ export class BattleScene extends Phaser.Scene {
             )
             return
           }
-          if (a.kind === 'skill' && skillId) {
-            const skill = getSkill(skillId)
-            if (skill.targets === 'single') {
-              const allyFacing =
-                skill.kind === 'heal' || skill.kind === 'utility' || skill.kind === 'buff'
-              this.beginTargeting(
-                allyFacing ? 'ally' : 'enemy',
-                `Choose a target for ${skill.name}.`,
-                (targetId) => this.dispatch({ kind: 'skill', skillId, targetId }),
-              )
-            } else {
-              this.dispatch({ kind: 'skill', skillId })
-            }
-            return
-          }
           this.dispatch({ kind: a.kind })
         },
         a.enabled,
+        a.tooltip,
       )
     }
   }
@@ -705,6 +740,20 @@ export class BattleScene extends Phaser.Scene {
   }
 
   /** Opens manual target-picking for the current actor's pending action. */
+  private selectSkill(skillId: string): void {
+    const skill = getSkill(skillId)
+    if (skill.targets !== 'single') {
+      this.skillMode = false
+      this.dispatch({ kind: 'skill', skillId })
+      return
+    }
+    const allyFacing = skill.kind === 'heal' || skill.kind === 'utility' || skill.kind === 'buff'
+    this.beginTargeting(allyFacing ? 'ally' : 'enemy', `Choose a target for ${skill.name}.`, (targetId) => {
+      this.skillMode = false
+      this.dispatch({ kind: 'skill', skillId, targetId })
+    })
+  }
+
   private beginTargeting(
     targetSide: 'ally' | 'enemy',
     prompt: string,
