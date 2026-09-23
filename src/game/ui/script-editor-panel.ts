@@ -56,6 +56,8 @@ let root: HTMLDivElement | null = null
 let backdrop: HTMLDivElement | null = null
 let bodyEl: HTMLDivElement | null = null
 let draft: CharacterScript | null = null
+/** Rule / reaction body expansion state, keyed by id, preserved across re-renders. */
+const expandedRules = new Set<string>()
 
 export function showScriptEditor(id: string): void {
   const script = getScript(id)
@@ -936,20 +938,24 @@ function ruleCard(line: ScriptLine, index: number, block: ScriptBlock): HTMLElem
   head.append(prio, summary)
   card.appendChild(head)
 
-  const body = div('se-rule-body hidden')
+  const open = expandedRules.has(line.id)
+  const body = div(open ? 'se-rule-body' : 'se-rule-body hidden')
   body.appendChild(triggerEditor(line.trigger, (t) => { line.trigger = t; onPersist() }))
   body.appendChild(targetEditor(line.target, (t) => { line.target = t; onPersist() }))
   body.appendChild(actionEditor(line.action, (a) => { line.action = a; onPersist() }, null))
 
   const actions = div('se-rule-actions')
-  const toggle = button('▸', 'se-toggle', () => {
-    body.classList.toggle('hidden')
-    toggle.textContent = body.classList.contains('hidden') ? '▸' : '▾'
+  const toggle = button(open ? '▾' : '▸', 'se-toggle', () => {
+    const nowOpen = body.classList.toggle('hidden')
+    toggle.textContent = nowOpen ? '▸' : '▾'
+    if (nowOpen) expandedRules.delete(line.id)
+    else expandedRules.add(line.id)
   })
   const up = button('↑', 'se-mini', () => moveLine(block, index, -1))
   const down = button('↓', 'se-mini', () => moveLine(block, index, 1))
   const del = button('✕', 'se-mini rm', () => {
     block.lines = block.lines.filter((l) => l.id !== line.id)
+    expandedRules.delete(line.id)
     onPersist()
   })
   up.title = 'Move up'
@@ -1055,15 +1061,19 @@ function reactionsEditor(script: CharacterScript): HTMLElement {
     summary.className = 'se-summary'
     headEl.append(prio, summary)
     card.appendChild(headEl)
-    const body = div('se-rule-body hidden')
+    const open = expandedRules.has(r.id)
+    const body = div(open ? 'se-rule-body' : 'se-rule-body hidden')
     body.appendChild(reactionEditor(r, (next) => { script.reactions[i] = next; onPersist() }))
     const actions = div('se-rule-actions')
-    const toggle = button('▸', 'se-toggle', () => {
-      body.classList.toggle('hidden')
-      toggle.textContent = body.classList.contains('hidden') ? '▸' : '▾'
+    const toggle = button(open ? '▾' : '▸', 'se-toggle', () => {
+      const nowOpen = body.classList.toggle('hidden')
+      toggle.textContent = nowOpen ? '▸' : '▾'
+      if (nowOpen) expandedRules.delete(r.id)
+      else expandedRules.add(r.id)
     })
     const del = button('✕', 'se-mini rm', () => {
       script.reactions = script.reactions.filter((x) => x.id !== r.id)
+      expandedRules.delete(r.id)
       onPersist()
     })
     actions.append(toggle, del)

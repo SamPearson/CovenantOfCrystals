@@ -1,3 +1,4 @@
+import Phaser from 'phaser'
 import { Panel } from './panel'
 import { THEME } from '../theme'
 import { uiText, makeButton, makeSubpanel } from '../widgets'
@@ -48,10 +49,12 @@ function applicableItems(profile: PlayerProfile): { itemId: string; count: numbe
 export class ApplyPanel extends Panel {
   private selectedChar: string | null = null
   private selectedItem: string | null = null
+  private applyQty = 1
   private message: string | null = null
 
   setSelection(charId: string): void {
     this.selectedChar = charId
+    this.applyQty = 1
     this.message = null
   }
 
@@ -128,6 +131,7 @@ export class ApplyPanel extends Panel {
       const hit = this.scene.add.rectangle(centerX + centerW / 2, iy + itemRowH / 2, centerW, itemRowH, 0x000000, 0)
       hit.setInteractive({ useHandCursor: true }).on('pointerdown', () => {
         this.selectedItem = this.selectedItem === itemId ? null : itemId
+        this.applyQty = 1
         this.message = null
         this.refresh()
       })
@@ -154,17 +158,24 @@ export class ApplyPanel extends Panel {
     const char = profile.characters[this.selectedChar]
     let canApply = true
     let previewText = ''
+    let maxQty = 1
 
     if (this.selectedItem) {
       const item = getItem(this.selectedItem)
       if (item.type === 'stat-shot' && item.boostStat) {
+        const invEntry = profile.inventory.items.find((e) => e.itemId === this.selectedItem)
+        maxQty = invEntry?.count ?? 0
         const stat = item.boostStat.stat
         const before = baseStatsFor(char)[stat]
-        const previewed = previewStatShot(char, item).character
+        let previewed = char
+        for (let i = 0; i < this.applyQty; i++) {
+          previewed = previewStatShot(previewed, item).character
+        }
         const after = baseStatsFor(previewed)[stat]
-        previewText = `${STAT_LABELS[stat]} ${before} → ${after}`
+        previewText = `${STAT_LABELS[stat]} ${before} → ${after}  (${this.applyQty}×)`
         canApply = after !== before
       } else if (item.type === 'tome' && item.grantsSkill) {
+        maxQty = 1
         const skill = getSkill(item.grantsSkill)
         if (char.learnedSkills.includes(item.grantsSkill)) {
           previewText = `Already knows ${skill.name} — cannot apply.`
@@ -177,6 +188,8 @@ export class ApplyPanel extends Panel {
       previewText = 'Select an item to preview its effect.'
     }
 
+    this.applyQty = Phaser.Math.Clamp(this.applyQty, 1, Math.max(1, maxQty))
+
     uiText(
       this.scene,
       previewX,
@@ -186,20 +199,60 @@ export class ApplyPanel extends Panel {
       content,
     )
 
+    if (this.selectedItem && maxQty > 1) {
+      const spinY = listY + 50
+      const spinBtnW = 24
+      const spinBtnH = 20
+      const spinGap = 4
+
+      makeButton(
+        this.scene,
+        previewX,
+        spinY,
+        '−',
+        () => {
+          if (this.applyQty > 1) {
+            this.applyQty--
+            this.refresh()
+          }
+        },
+        { width: spinBtnW, height: spinBtnH, color: THEME.colors.panelAlt, fontSize: 'sm', labelColor: THEME.colors.text },
+        content,
+      ).setDisabled(this.applyQty <= 1)
+
+      uiText(this.scene, previewX + spinBtnW + spinGap, spinY + 2, `${this.applyQty}`, { size: 'sm', color: THEME.colors.text }, content)
+
+      makeButton(
+        this.scene,
+        previewX + spinBtnW + spinGap + 20,
+        spinY,
+        '+',
+        () => {
+          if (this.applyQty < maxQty) {
+            this.applyQty++
+            this.refresh()
+          }
+        },
+        { width: spinBtnW, height: spinBtnH, color: THEME.colors.panelAlt, fontSize: 'sm', labelColor: THEME.colors.text },
+        content,
+      ).setDisabled(this.applyQty >= maxQty)
+    }
+
     const charName = char.name
     const itemId = this.selectedItem
+    const qty = this.applyQty
     makeButton(
       this.scene,
       previewX,
-      listY + 70,
-      'Apply',
+      listY + 80,
+      qty > 1 ? `Apply ×${qty}` : 'Apply',
       () => {
         if (!this.selectedChar || !itemId) return
         try {
-          const result: ApplyItemResult =
-            getItem(itemId).type === 'stat-shot'
-              ? applyStatShot(this.selectedChar, itemId)
-              : applyTome(this.selectedChar, itemId)
+          const isStatShot = getItem(itemId).type === 'stat-shot'
+          const result: ApplyItemResult = isStatShot
+            ? applyStatShot(this.selectedChar, itemId, qty)
+            : applyTome(this.selectedChar, itemId)
           if (!result.ok) {
             this.message = result.alreadyKnown
               ? 'That character already knows this skill.'
@@ -211,9 +264,10 @@ export class ApplyPanel extends Panel {
           if (consumed.type === 'tome') {
             this.message = `${charName} learned ${getSkill(consumed.grantsSkill!).name}.`
           } else {
-            this.message = `Applied ${consumed.name} to ${charName}.`
+            this.message = `Applied ${consumed.name} ×${qty} to ${charName}.`
           }
           this.selectedItem = null
+          this.applyQty = 1
           this.refresh()
         } catch (err) {
           this.message = (err as Error).message

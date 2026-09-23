@@ -378,6 +378,41 @@ describe('items: stat-shots & tomes (Phase 4.5.1)', () => {
     expect(getProfile().inventory.items.find((e) => e.itemId === 'tome_slashing_strike')?.count).toBe(1)
   })
 
+  it('applies multiple stat-shots at once with qty param', () => {
+    const party = seedParty(1)
+    const charId = party[0]
+    mutate((p) => addItem(p, 'shot_atk_1', 5))
+    const before = getProfile().characters[charId]?.statBonus?.atk ?? 0
+
+    const result = applyStatShot(charId, 'shot_atk_1', 3)
+    expect(result.ok).toBe(true)
+    expect(getProfile().characters[charId]?.statBonus?.atk).toBe(before + 3)
+    expect(getProfile().inventory.items.find((e) => e.itemId === 'shot_atk_1')?.count).toBe(2)
+  })
+
+  it('applies all available stat-shots when qty matches inventory', () => {
+    const party = seedParty(1)
+    const charId = party[0]
+    mutate((p) => addItem(p, 'shot_atk_1', 3))
+
+    const result = applyStatShot(charId, 'shot_atk_1', 3)
+    expect(result.ok).toBe(true)
+    expect(getProfile().characters[charId]?.statBonus?.atk).toBe(3)
+    expect(getProfile().inventory.items.find((e) => e.itemId === 'shot_atk_1')).toBeUndefined()
+  })
+
+  it('tome always teaches once and consumes only 1 from a stack', () => {
+    const party = seedParty(1)
+    const charId = party[0]
+    mutate((p) => addItem(p, 'tome_fireball', 3))
+
+    const result = applyTome(charId, 'tome_fireball')
+    expect(result.ok).toBe(true)
+    expect(getProfile().characters[charId]?.learnedSkills).toContain('fireball')
+    expect(getProfile().characters[charId]?.learnedSkills.filter((s) => s === 'fireball')).toHaveLength(1)
+    expect(getProfile().inventory.items.find((e) => e.itemId === 'tome_fireball')?.count).toBe(2)
+  })
+
   it('adds a gear-granted skill to the loadout and silently drops it on unequip', () => {
     const party = seedParty(1)
     const charId = party[0]

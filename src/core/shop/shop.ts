@@ -86,7 +86,7 @@ export function canBuyItem(profile: PlayerProfile, itemId: string, count = 1): S
   if (!ITEMS[itemId]) return { ok: false, error: `Unknown item: ${itemId}` }
   if (!isInStock(profile.shop, itemId)) return { ok: false, error: `${itemId} is not in stock` }
   const price = ITEMS[itemId]!.value * count
-  if (profile.gold < price) return { ok: false, error: 'Not enough gold' }
+  if (profile.gold < price) return { ok: false, price, error: 'Not enough gold' }
   return { ok: true, price }
 }
 

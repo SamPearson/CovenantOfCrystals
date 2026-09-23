@@ -371,15 +371,18 @@ export interface ApplyItemResult {
  * Phase 4.5.1 (I1/I3/I4): applies a stat-shot to a character permanently. The
  * bonus is written to `Character.statBonus` and persists; the item is consumed.
  */
-export function applyStatShot(characterId: string, itemId: string): ApplyItemResult {
+export function applyStatShot(characterId: string, itemId: string, qty = 1): ApplyItemResult {
   const item = getItem(itemId)
   const character = current.profile.characters[characterId]
   if (!character) return { ok: false, error: 'Character not found' }
   if (item.type !== 'stat-shot' || !item.boostStat) {
     return { ok: false, error: `${item.name} is not a stat-shot` }
   }
-  coreApplyStatShot(character, item)
-  removeItem(current.profile, itemId, 1)
+  const count = Math.max(1, Math.floor(qty))
+  for (let i = 0; i < count; i++) {
+    coreApplyStatShot(character, item)
+  }
+  removeItem(current.profile, itemId, count)
   writeSave(current)
   notify()
   return { ok: true }
