@@ -9,7 +9,7 @@ export default defineConfig({
     target: 'es2022',
     sourcemap: true,
     chunkSizeWarningLimit: 1800,
-    outDir: '/var/www/game',
+    outDir: '/var/www/game.spearson.link',
     emptyOutDir: true,
   },
   test: {
