@@ -15,6 +15,12 @@ import { RecruitmentPanel } from '../ui/panels/recruitment-panel'
 import { AutomationPanel } from '../ui/panels/automation-panel'
 import type { Panel } from '../ui/panels/panel'
 import { initStore, getProfile, subscribe } from '../../core/store'
+import {
+  isFullscreen,
+  isFullscreenSupported,
+  onFullscreenChange,
+  toggleFullscreen,
+} from '../../core/fullscreen'
 
 type PanelId = 'boxes' | 'party' | 'equip' | 'inventory' | 'apply' | 'shop' | 'recruit' | 'automation' | 'theme'
 
@@ -47,6 +53,8 @@ export class MetaScene extends Phaser.Scene {
   private unsubscribe: (() => void) | null = null
   private themeUnsubscribe: (() => void) | null = null
   private themeTimer: Phaser.Time.TimerEvent | null = null
+  private fullscreenButton!: Button
+  private fullscreenUnsubscribe: (() => void) | null = null
 
   constructor() {
     super('MetaScene')
@@ -108,6 +116,32 @@ export class MetaScene extends Phaser.Scene {
       { width: 150, height: 32 },
     )
 
+    // Utility control, so it wears the inactive-tab colors rather than the
+    // accent the two action buttons use.
+    this.fullscreenButton = makeButton(
+      this,
+      width / 2 + 90,
+      8,
+      'Fullscreen',
+      () => void toggleFullscreen(),
+      {
+        width: 150,
+        height: 32,
+        color: THEME.colors.accentBlue,
+        labelColor: colorHex(THEME.colors.borderLight),
+      },
+    )
+    this.fullscreenButton.setDisabled(!isFullscreenSupported())
+    this.syncFullscreenButton()
+    // Pressing Escape (or leaving the tab to another window) ends fullscreen
+    // without going through `toggleFullscreen`, so the caption has to follow
+    // the real `fullscreenElement` state. FIT mode also has to re-fit the
+    // canvas to the new viewport.
+    this.fullscreenUnsubscribe = onFullscreenChange(() => {
+      this.syncFullscreenButton()
+      this.scale.refresh()
+    })
+
     const contentRect = {
       x: 10,
       y: THEME.header.height + THEME.tabs.height + 6,
@@ -137,10 +171,10 @@ export class MetaScene extends Phaser.Scene {
 
     // Phaser 4 never invokes a custom `shutdown()` method — stopping a scene
     // only dispatches the SHUTDOWN event. The store `subscribeThemes`/`subscribe`
-    // listeners must be torn down there or they leak across scene starts and
-    // `updateHeader()` runs against display objects DisplayList has destroyed.
-    // (DisplayList already destroys every scene child on SHUTDOWN, so this does
-    // not touch the tab buttons or panels.)
+    // and window `fullscreenchange` listeners must be torn down there or they
+    // leak across scene starts and `updateHeader()` runs against display objects
+    // DisplayList has destroyed. (DisplayList already destroys every scene child
+    // on SHUTDOWN, so this does not touch the tab buttons or panels.)
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.onSceneShutdown, this)
 
     this.active = lastActiveTab
@@ -154,6 +188,13 @@ export class MetaScene extends Phaser.Scene {
     this.themeUnsubscribe = null
     this.themeTimer?.remove(false)
     this.themeTimer = null
+    this.fullscreenUnsubscribe?.()
+    this.fullscreenUnsubscribe = null
+  }
+
+  private syncFullscreenButton(): void {
+    const on = isFullscreen()
+    this.fullscreenButton.setLabel(on ? 'Exit Fullscreen' : 'Fullscreen')
   }
 
   private openEquip(charId: string): void {

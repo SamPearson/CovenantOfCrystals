@@ -135,6 +135,8 @@ export interface Button {
   /** The interactive click surface — handy for hover/tooltip wiring. */
   hit: Phaser.GameObjects.Rectangle
   setDisabled(disabled: boolean): void
+  /** Swap the caption in place (e.g. a Fullscreen / Exit Fullscreen toggle). */
+  setLabel(label: string): void
   destroy(): void
 }
 
@@ -206,6 +208,9 @@ export function makeButton(
     setDisabled(value: boolean) {
       disabled = value
       applyDisabled()
+    },
+    setLabel(value: string) {
+      text.setText(value)
     },
     destroy() {
       container.destroy(true)
