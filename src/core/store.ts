@@ -16,6 +16,7 @@ import { removeItem, findGearById } from './inventory'
 import { getItem, getSkill } from './data'
 import { equipGear, unequipSlot } from './equip'
 import { applyStatShot as coreApplyStatShot, applyTome as coreApplyTome } from './items/apply'
+import { applyLevelUp, canLevelUp, xpToNext, LEVEL_STATS } from './leveling'
 import { validateLoadout } from './items'
 import { refreshShopStock } from './shop/shop'
 import { refreshRecruitment } from './shop/recruitment'
@@ -407,6 +408,35 @@ export function applyTome(characterId: string, itemId: string): ApplyItemResult 
   removeItem(current.profile, itemId, 1)
   writeSave(current)
   notify()
+  return { ok: true }
+}
+
+/**
+ * Levels up a character: deducts XP, increments level, and applies flask
+ * assignments to the character's statBonus.
+ */
+export function levelUpCharacter(
+  characterId: string,
+  assignments: Partial<Record<string, number>>,
+): ItemUseResult {
+  const character = current.profile.characters[characterId]
+  if (!character) return { ok: false, error: 'Character not found' }
+  if (!canLevelUp(character)) {
+    return { ok: false, error: `${character.name} needs ${xpToNext(character.level)} XP to level up (has ${character.xp})` }
+  }
+  // Validate assignments
+  let total = 0
+  for (const key of LEVEL_STATS) {
+    total += assignments[key] ?? 0
+  }
+  if (total > 7) {
+    return { ok: false, error: `Too many flasks assigned (max 7, got ${total})` }
+  }
+  mutate((p) => {
+    const c = p.characters[characterId]
+    if (!c) return
+    p.characters[characterId] = applyLevelUp(c, assignments)
+  })
   return { ok: true }
 }
 
