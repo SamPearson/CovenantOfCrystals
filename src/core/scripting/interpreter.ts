@@ -183,7 +183,7 @@ export function validateScriptDepth(script: CharacterScript): void {
   checkTrigger(script.fallback?.trigger, 'fallback')
 }
 
-const SNAPSHOT_STATS: readonly (keyof ScriptActorSnapshot['stats'])[] = ['hp', 'atk', 'def', 'mag', 'res', 'spd']
+const SNAPSHOT_STATS: readonly (keyof ScriptActorSnapshot['stats'])[] = ['hp', 'mp', 'atk', 'def', 'mag', 'res', 'spd']
 
 function effectiveStat(actor: BattleActor, stat: keyof BattleActor['stats']): number {
   const base = actor.stats[stat] ?? 0

@@ -65,7 +65,7 @@ export interface ItemTooltipContext {
   equippedBy?: string
 }
 
-const STAT_ORDER: StatKey[] = ['hp', 'atk', 'def', 'mag', 'res', 'spd']
+const STAT_ORDER: StatKey[] = ['hp', 'mp', 'atk', 'def', 'mag', 'res', 'spd']
 
 const KIND_LABEL: Record<SkillDef['kind'], string> = {
   damage: 'Damage',

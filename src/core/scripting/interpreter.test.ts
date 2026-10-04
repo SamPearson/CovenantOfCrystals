@@ -32,7 +32,7 @@ import { BUILT_IN_DPS, BUILT_IN_HEALER } from '../data/scripts'
 
 const rng: Rng = () => 0.42
 
-const STATS = { hp: 100, atk: 10, def: 10, mag: 10, res: 10, spd: 10 } as const
+const STATS = { hp: 100, mp: 20, atk: 10, def: 10, mag: 10, res: 10, spd: 10 } as const
 
 function actor(p: Partial<ScriptActorSnapshot> & { id: string }): ScriptActorSnapshot {
   return {

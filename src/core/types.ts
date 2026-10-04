@@ -5,10 +5,11 @@
 
 import type { CharacterScript, EventPattern } from './scripting/types'
 
-export type StatKey = 'hp' | 'atk' | 'def' | 'mag' | 'res' | 'spd'
+export type StatKey = 'hp' | 'mp' | 'atk' | 'def' | 'mag' | 'res' | 'spd'
 
 export interface StatBlock {
   hp: number
+  mp: number
   atk: number
   def: number
   mag: number

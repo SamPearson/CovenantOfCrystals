@@ -15,7 +15,7 @@ export interface StatDelta {
   delta: number
 }
 
-const STAT_ORDER: StatKey[] = ['hp', 'atk', 'def', 'mag', 'res', 'spd']
+const STAT_ORDER: StatKey[] = ['hp', 'mp', 'atk', 'def', 'mag', 'res', 'spd']
 
 /** Per-stat change from equipping `itemId` onto `c`, vs. what's currently in its slot. */
 export function gearStatDeltas(c: Character, itemId: string): StatDelta[] {

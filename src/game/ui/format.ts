@@ -22,7 +22,7 @@ export function statDeltaText(delta: number, key: StatKey): string {
 }
 
 export function statList(stats: StatBlock): { key: StatKey; value: number }[] {
-  const order: StatKey[] = ['hp', 'atk', 'def', 'mag', 'res', 'spd']
+  const order: StatKey[] = ['hp', 'mp', 'atk', 'def', 'mag', 'res', 'spd']
   return order.map((key) => ({ key, value: stats[key] }))
 }
 

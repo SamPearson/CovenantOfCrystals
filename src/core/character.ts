@@ -49,6 +49,7 @@ export function baseStatsAtLevel(classDef: ClassDef, level: number): StatBlock {
   const mult = level - 1
   return {
     hp: classDef.baseStats.hp + classDef.growth.hp * mult,
+    mp: classDef.baseStats.mp + classDef.growth.mp * mult,
     atk: classDef.baseStats.atk + classDef.growth.atk * mult,
     def: classDef.baseStats.def + classDef.growth.def * mult,
     mag: classDef.baseStats.mag + classDef.growth.mag * mult,
@@ -67,7 +68,7 @@ export function baseStatsFor(c: Character): StatBlock {
   const stats = baseStatsAtLevel(classDef, c.level)
   const bonus = c.statBonus
   if (bonus) {
-    for (const key of ['hp', 'atk', 'def', 'mag', 'res', 'spd'] as const) {
+    for (const key of ['hp', 'mp', 'atk', 'def', 'mag', 'res', 'spd'] as const) {
       stats[key] += bonus[key] ?? 0
     }
   }
@@ -83,7 +84,7 @@ export function derivedStats(c: Character): StatBlock {
     const item = getItem(gear.itemId)
     const bonus = item.statBonus
     if (!bonus) continue
-    for (const key of ['hp', 'atk', 'def', 'mag', 'res', 'spd'] as const) {
+    for (const key of ['hp', 'mp', 'atk', 'def', 'mag', 'res', 'spd'] as const) {
       stats[key] += bonus[key] ?? 0
     }
   }
