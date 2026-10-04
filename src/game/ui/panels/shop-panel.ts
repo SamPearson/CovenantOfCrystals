@@ -1,3 +1,4 @@
+import Phaser from 'phaser'
 import { Panel } from './panel'
 import { THEME } from '../theme'
 import { uiText, makeButton, makeSubpanel, type Button } from '../widgets'
