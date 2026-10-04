@@ -18,6 +18,7 @@ import { getProfile, getScripts, assignScript } from '../../../core/store'
 import { getClass, getItem, getSkill, derivedStats, getSkillPool } from '../../../core'
 import { describeItem, describeSkill } from '../../../core/tooltips'
 import type { TooltipLine } from '../../../core/tooltips'
+import { drawSeptagon } from '../septagon'
 
 interface HoverBand {
   top: number
@@ -126,6 +127,20 @@ export function buildCharacterDetail(
     yy += 19
   }
   yy += 8
+
+  // Septagon stat visualization — drawn in the live container layer
+  // (not the scrollable content) so it stays fixed while text scrolls.
+  const septagonRadius = Math.min(100, (w - pad * 2) / 2 - 20)
+  const septagonX = w - septagonRadius - pad - 10
+  const septagonY = yy - 10
+  drawSeptagon(scene, {
+    x: septagonX,
+    y: septagonY,
+    radius: septagonRadius,
+    stats,
+    classId: c.classId,
+    parent: region.container,
+  })
 
   uiText(scene, pad, yy, 'SKILLS', { size: 'xs', color: heading }, view)
   yy += 16
