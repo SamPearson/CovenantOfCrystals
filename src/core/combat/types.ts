@@ -10,6 +10,7 @@
 
 import type { StatBlock, StatKey, Element, AiProfileId } from '../types'
 import type { CharacterScript, EventKind } from '../scripting/types'
+import type { BattleLogger } from './logger'
 
 export type CombatantSide = 'player' | 'enemy'
 
@@ -157,6 +158,7 @@ export interface BattleState {
    */
   reactionResolver?: (characterId: string) => CharacterScript | undefined
   log: BattleLogEntry[]
+  logger: BattleLogger
   status: BattleStatus
   over: boolean
 }

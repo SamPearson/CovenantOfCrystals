@@ -23,6 +23,12 @@ function makeBattle(): BattleState {
     ally: makeActor('ally', 'player'),
     goblin: makeActor('goblin', 'enemy'),
   }
+  const logger: BattleState['logger'] = {
+    entries: [],
+    log() {},
+    getEntries() { return this.entries },
+    clear() { this.entries.length = 0 },
+  }
   return {
     seed: 1,
     actors,
@@ -32,6 +38,7 @@ function makeBattle(): BattleState {
     pendingEvents: [],
     reactionQueue: [],
     log: [],
+    logger,
     status: 'ongoing',
     over: false,
   }

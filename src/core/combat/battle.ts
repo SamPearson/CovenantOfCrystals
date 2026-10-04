@@ -17,6 +17,7 @@ import type {
   PendingReaction,
   TurnOutcome,
 } from './types'
+import { createBattleLogger, calculateDamageMath, formatDamageMath } from './logger'
 import type { Character, EnemyDef, PlayerAiPresetId, SkillDef } from '../types'
 import type { CharacterScript } from '../scripting/types'
 import { derivedStats } from '../character'
@@ -132,6 +133,7 @@ export function createBattle(
     pendingEvents: [],
     reactionQueue: [],
     log: [],
+    logger: createBattleLogger(),
     status: 'ongoing',
     over: false,
   }
@@ -260,15 +262,42 @@ function resolveAttack(
   if (!hitCheck(accuracy, BALANCE.dodgeRate, rng)) {
     battle.pendingEvents.push({ kind: 'evaded', actorId: target.id, sourceId: actor.id })
     push(`${actor.name}'s attack misses ${target.name}.`, actor.id)
+    battle.logger.log({
+      turn: battle.turnCount,
+      actorId: actor.id,
+      text: `${actor.name}'s attack misses ${target.name}.`,
+      simple: `${actor.name}'s attack misses ${target.name}.`,
+      advanced: `${actor.name}'s attack misses ${target.name}. (accuracy ${(accuracy * (1 - BALANCE.dodgeRate)).toFixed(2)})`,
+    })
     return BALANCE.actionDelays.attack
   }
   const rating = physicalDamage(BALANCE.basicAttackPower, atk, def)
+  const varianceRoll = rng()
+  const crit = rollCrit(rng, BALANCE.critRate)
   const damage = finalizeDamage(rating, {
     attackElement: actor.element ?? 'none',
     defendElement: target.element ?? 'none',
     defending: target.defending,
-    varianceRoll: rng(),
-    crit: rollCrit(rng, BALANCE.critRate),
+    varianceRoll,
+    crit,
+  })
+  const damageMath = calculateDamageMath(
+    BALANCE.basicAttackPower,
+    atk,
+    def,
+    actor.element ?? 'none',
+    target.element ?? 'none',
+    target.defending ?? false,
+    varianceRoll,
+    crit,
+  )
+  battle.logger.log({
+    turn: battle.turnCount,
+    actorId: actor.id,
+    text: `${actor.name} hits ${target.name} for ${damage}.`,
+    simple: `${actor.name} hits ${target.name} for ${damage}.`,
+    advanced: `${actor.name} hits ${target.name} for ${damage}. (${formatDamageMath(damageMath)})`,
+    damageMath,
   })
   return dealDamage(battle, actor, target, damage, push, BALANCE.actionDelays.attack)
 }

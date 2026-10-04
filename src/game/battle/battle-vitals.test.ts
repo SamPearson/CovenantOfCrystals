@@ -21,6 +21,12 @@ function makeActor(id: string, hp: number, mp: number): BattleActor {
 function makeBattle(actors: BattleActor[]): BattleState {
   const record: Record<string, BattleActor> = {}
   for (const a of actors) record[a.id] = a
+  const logger: BattleState['logger'] = {
+    entries: [],
+    log() {},
+    getEntries() { return this.entries },
+    clear() { this.entries.length = 0 },
+  }
   return {
     seed: 1,
     actors: record,
@@ -30,6 +36,7 @@ function makeBattle(actors: BattleActor[]): BattleState {
     pendingEvents: [],
     reactionQueue: [],
     log: [],
+    logger,
     status: 'ongoing',
     over: false,
   }

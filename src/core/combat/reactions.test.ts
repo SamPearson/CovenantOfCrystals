@@ -24,6 +24,12 @@ function makeBattle(heroOverrides: Partial<BattleActor> = {}): BattleState {
   const hero = makeActor('hero', 'player', ['thorns'])
   const ally = makeActor('ally', 'player')
   const goblin = makeActor('goblin', 'enemy', ['tackle'])
+  const logger: BattleState['logger'] = {
+    entries: [],
+    log() {},
+    getEntries() { return this.entries },
+    clear() { this.entries.length = 0 },
+  }
   return {
     seed: 1,
     actors: {
@@ -37,6 +43,7 @@ function makeBattle(heroOverrides: Partial<BattleActor> = {}): BattleState {
     pendingEvents: [],
     reactionQueue: [],
     log: [],
+    logger,
     status: 'ongoing',
     over: false,
   }
