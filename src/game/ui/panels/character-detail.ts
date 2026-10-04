@@ -117,12 +117,8 @@ export function buildCharacterDetail(
     radius: septagonRadius,
     stats,
     classId: c.classId,
-    parent: scene.add.container(),
+    parent,
   })
-  scene.add.container().add([
-    // Keep septagon as a sibling of the scroll region in the scene
-    ...scene.children.getChildren(),
-  ])
 
   // ── Scrollable body ───────────────────────────────────────────────────
   const scrollRegion = makeScrollRegion(scene, parent, x, scrollTopY, w, h - fixedHeaderH, {
