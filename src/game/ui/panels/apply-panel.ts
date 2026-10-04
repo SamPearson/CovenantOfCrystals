@@ -160,6 +160,7 @@ export class ApplyPanel extends Panel {
     let canApply = true
     let previewText = ''
     let maxQty = 1
+    const charName = char.name
 
     if (this.selectedItem) {
       const item = getItem(this.selectedItem)
@@ -179,10 +180,10 @@ export class ApplyPanel extends Panel {
         maxQty = 1
         const skill = getSkill(item.grantsSkill)
         if (char.learnedSkills.includes(item.grantsSkill)) {
-          previewText = `Already knows ${skill.name} — cannot apply.`
+          previewText = `${charName} already knows ${skill.name} — cannot apply.`
           canApply = false
         } else {
-          previewText = `Will learn ${skill.name}.`
+          previewText = `${charName} will learn ${skill.name}.`
         }
       }
     } else {
@@ -239,7 +240,6 @@ export class ApplyPanel extends Panel {
       ).setDisabled(this.applyQty >= maxQty)
     }
 
-    const charName = char.name
     const itemId = this.selectedItem
     const qty = this.applyQty
     makeButton(

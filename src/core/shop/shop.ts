@@ -11,7 +11,7 @@
 import { BALANCE, getItem, ITEMS } from '../data'
 import type { GearInstance, ItemDef, PlayerProfile, ShopStock } from '../types'
 import { shuffle, type Rng } from '../rng/rng'
-import { addGear, addItem, createGearInstance, findGearById, removeGearById } from '../inventory'
+import { addGear, addItem, createGearInstance, findGearById, removeGearById, removeItem } from '../inventory'
 
 /** Always-on-sale consumables (decision S10). */
 export const ALWAYS_POTIONS: readonly string[] = [
@@ -106,22 +106,51 @@ export function buyItem(profile: PlayerProfile, itemId: string, count = 1): Shop
   return check
 }
 
-/** Pure guard: may the player sell this gear instance? Consumables are never sellable. */
-export function canSellItem(profile: PlayerProfile, gearId: string): ShopActionResult {
-  const gear = findGearById(profile, gearId)
-  if (!gear) return { ok: false, error: `Gear not found: ${gearId}` }
-  const def = getItem(gear.itemId)
-  if (def.type !== 'weapon' && def.type !== 'armor') {
-    return { ok: false, error: `${gear.itemId} is not sellable` }
+/** Pure guard: may the player sell this item/gear instance? Equipped gear cannot be sold. */
+export function canSellItem(profile: PlayerProfile, id: string): ShopActionResult {
+  // First check if it's a gear instance
+  const gear = findGearById(profile, id)
+  if (gear) {
+    const def = getItem(gear.itemId)
+    if (def.type !== 'weapon' && def.type !== 'armor') {
+      return { ok: false, error: `${gear.itemId} is not sellable` }
+    }
+    // Check if equipped
+    for (const char of Object.values(profile.characters)) {
+      if (char.gear.weapon?.id === id || char.gear.armor?.id === id) {
+        return { ok: false, error: 'Cannot sell equipped gear' }
+      }
+    }
+    return { ok: true, price: sellPrice(gear, def) }
   }
-  return { ok: true, price: sellPrice(gear, def) }
+
+  // Check if it's a consumable item in inventory
+  const invEntry = profile.inventory.items.find((e) => e.itemId === id)
+  if (invEntry) {
+    const def = getItem(id)
+    // Don't sell stat-shots (they're permanent) or tomes (single-use learned skills)
+    if (def.type === 'stat-shot' || def.type === 'tome') {
+      return { ok: false, error: `${def.name} cannot be sold` }
+    }
+    return { ok: true, price: def.value }
+  }
+
+  return { ok: false, error: `Item not found: ${id}` }
 }
 
-/** Sells a gear instance, crediting gold and removing it from inventory. */
-export function sellItem(profile: PlayerProfile, gearId: string): ShopActionResult {
-  const check = canSellItem(profile, gearId)
+/** Sells an item/gear instance, crediting gold and removing it from inventory. */
+export function sellItem(profile: PlayerProfile, id: string): ShopActionResult {
+  const check = canSellItem(profile, id)
   if (!check.ok || check.price === undefined) return check
   profile.gold += check.price
-  removeGearById(profile, gearId)
+
+  // Try to remove as gear first
+  const gear = findGearById(profile, id)
+  if (gear) {
+    removeGearById(profile, id)
+  } else {
+    // Remove from consumable inventory
+    removeItem(profile, id, 1)
+  }
   return check
 }

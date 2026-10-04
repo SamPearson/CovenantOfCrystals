@@ -35,7 +35,7 @@ import { getSkill, getItem, getClass } from '../../core/data'
 import { scriptedSquad, partyForBattle, partyByIds } from '../battle/battle-setup'
 import { snapshotVitals, diffVitals } from '../battle/battle-vitals'
 import { statusIcon } from '../battle/status-icons'
-import { attachTooltip } from '../ui/tooltip'
+import { showTooltip, hideTooltip, attachTooltip } from '../ui/tooltip'
 import { describeSkill, describeItem } from '../../core/tooltips'
 import type { TooltipLine } from '../../core/tooltips'
 import type { BattleAction, BattleActor, BattleResult, BattleState } from '../../core/combat/types'
@@ -471,6 +471,10 @@ export class BattleScene extends Phaser.Scene {
     })
   }
 
+  private refreshCards(): void {
+    this.renderCards()
+  }
+
   private buildCard(actor: BattleActor, x: number, y: number, w: number): Phaser.GameObjects.Container {
     const t = THEME.colors
     const card = this.add.container(x, y)
@@ -486,9 +490,24 @@ export class BattleScene extends Phaser.Scene {
       card.add(ring)
     }
 
-    const nameColor = actor.side === 'enemy' ? t.accent : t.text
-    const name = uiText(this, 8, 6, truncate(actor.name, 16), { size: 'sm', color: nameColor, family: 'display' }, card)
+    // Card accent color for party members
+    const isPlayer = actor.side === 'player'
+    const ch = isPlayer ? getProfile().characters[actor.id] : null
+    const cardColor = ch?.cardColor ? (ch.cardColor.startsWith('#') ? parseInt(ch.cardColor.slice(1), 16) : parseInt(ch.cardColor, 16)) : (isPlayer ? t.accentBlue : t.accent)
+    const accentLine = this.add.rectangle(w / 2, 2, w, 4, cardColor).setOrigin(0.5, 0)
+    card.add(accentLine)
+
+    const nameColor = isPlayer ? t.text : t.accent
+    const nameText = truncate(actor.name, 16)
+    const name = uiText(this, 8, 6, nameText, { size: 'sm', color: nameColor, family: 'display' }, card)
     name.setOrigin(0, 0)
+
+    // Make character name clickable to edit (party only)
+    if (isPlayer && !actor.ko) {
+      name.setInteractive({ useHandCursor: true })
+      name.on('pointerdown', () => this.editCharacterName(actor.id))
+    }
+
     if (actor.defending) {
       makeBadge(this, w - 40, 6, 'DEF', colorHex(t.accentBlue), { width: 32, height: 18 }, card)
     }
@@ -496,8 +515,7 @@ export class BattleScene extends Phaser.Scene {
     const elem = actor.element ?? 'none'
     let subText: string
     let subColor: string
-    if (actor.side === 'player') {
-      const ch = getProfile().characters[actor.id]
+    if (isPlayer) {
       const cls = ch ? getClass(ch.classId) : null
       subText = cls ? cls.name : elementLabel(elem)
       subColor = elementColor(cls ? cls.element : elem)
@@ -513,7 +531,7 @@ export class BattleScene extends Phaser.Scene {
 
     this.buildStatusIcons(actor, card)
 
-    if (actor.side === 'player' && !actor.ko) {
+    if (isPlayer && !actor.ko) {
       const m = this.mode.get(actor.id)
       const isAuto = m === 'auto'
       const toggleLabel = isAuto ? 'AUTO' : 'MANUAL'
@@ -539,6 +557,14 @@ export class BattleScene extends Phaser.Scene {
         card.setInteractive({ useHandCursor: true })
         card.on('pointerdown', () => this.onPickTarget(actor.id))
       }
+    }
+
+    // Enemy hover tooltip showing stats
+    if (!isPlayer && !actor.ko) {
+      card.setSize(w, CARD_H)
+      card.setInteractive({ useHandCursor: false })
+      card.on('pointerover', () => this.showEnemyStatsTooltip(actor, card))
+      card.on('pointerout', () => hideTooltip(this))
     }
 
     if (actor.ko) {
@@ -594,6 +620,53 @@ export class BattleScene extends Phaser.Scene {
       const badge = makeBadge(this, px, 60, icon.label, tones[icon.tone] ?? THEME.colors.textMuted, { height: 18 }, card)
       px += badge.width + 4
     }
+  }
+
+  private editCharacterName(actorId: string): void {
+    const profile = getProfile()
+    const ch = profile.characters[actorId]
+    if (!ch) return
+
+    const input = document.createElement('input')
+    input.type = 'text'
+    input.value = ch.name
+    input.maxLength = 16
+    input.style.cssText = `
+      position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+      padding: 8px 12px; font-size: 14px; border: 2px solid #c9b896;
+      background: #1a1612; color: #e8dfc8; border-radius: 4px; z-index: 10000;
+    `
+    document.body.appendChild(input)
+    input.focus()
+    input.select()
+
+    const submit = () => {
+      const name = input.value.trim()
+      input.remove()
+      if (name && name !== ch.name) {
+        mutate((p) => { p.characters[actorId].name = name })
+        this.refreshCards()
+      }
+    }
+
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') submit()
+      if (e.key === 'Escape') { input.remove() }
+    })
+    input.addEventListener('blur', submit)
+  }
+
+  private showEnemyStatsTooltip(actor: BattleActor, card: Phaser.GameObjects.Container): void {
+    const lines: TooltipLine[] = [
+      { kind: 'title', text: actor.name, flare: 'rarity' },
+      { kind: 'subtitle', text: `Level ${actor.stats.hp ? Math.round(actor.stats.hp / 10) : 1}` },
+      { kind: 'label', text: `HP ${actor.hp}/${actor.stats.hp}`, tone: 'muted' },
+      { kind: 'label', text: `MP ${actor.mp}/${actor.maxMp ?? 0}`, tone: 'accent' },
+      { kind: 'label', text: `ATK ${actor.stats.atk}  DEF ${actor.stats.def}`, tone: 'good' },
+      { kind: 'label', text: `MAG ${actor.stats.mag}  RES ${actor.stats.res}`, tone: 'good' },
+      { kind: 'label', text: `SPD ${actor.stats.spd}`, tone: 'muted' },
+    ]
+    showTooltip(this, card.x + card.width / 2, card.y - 10, lines)
   }
 
   // ---------------------------------------------------------------- actions

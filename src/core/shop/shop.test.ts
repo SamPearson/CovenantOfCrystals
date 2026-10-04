@@ -182,6 +182,6 @@ describe('canSellItem / sellItem', () => {
   it('refuses unknown gear ids', () => {
     const p = profile()
     expect(canSellItem(p, 'missing').ok).toBe(false)
-    expect(sellItem(p, 'missing').error).toBe('Gear not found: missing')
+    expect(sellItem(p, 'missing').error).toBe('Item not found: missing')
   })
 })
