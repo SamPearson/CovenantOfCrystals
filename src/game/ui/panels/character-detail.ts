@@ -1,11 +1,8 @@
 /**
  * Shared character detail view used by the Boxes and Party panels. Renders
- * into two distinct zones:
- *   1. Fixed header — name, badges, septagon (non-scrolling)
- *   2. Scrollable body — gear, stats, skills, autobattle selector
- *
- * The septagon is drawn directly in the scene (not inside the scroll region),
- * so it is never clipped by the scroll texture.
+ * into two horizontally split scrollable zones:
+ *   1. Left scroll — identity, septagon, stats, gear
+ *   2. Right scroll — skills, auto-battle script selector, action buttons
  */
 
 import Phaser from 'phaser'
@@ -19,7 +16,7 @@ import {
   roleLabel,
   elementLabel,
 } from '../format'
-import { getProfile, getScripts, assignScript } from '../../../core/store'
+import { getProfile, getScripts, assignScript, mutate } from '../../../core/store'
 import { getClass, getItem, getSkill, derivedStats, getSkillPool } from '../../../core'
 import { describeItem, describeSkill } from '../../../core/tooltips'
 import type { TooltipLine } from '../../../core/tooltips'
@@ -29,6 +26,7 @@ interface HoverBand {
   top: number
   bottom: number
   payload: () => TooltipLine[]
+  onClick?: () => void
 }
 
 export interface DetailAction {
@@ -57,27 +55,42 @@ export function buildCharacterDetail(
   const pad = THEME.spacing.pad
   const textMuted = THEME.colors.textMuted
   const heading = THEME.colors.accentBlue
+  const gap = 8 // gap between the two scroll regions
 
   // ── Layout ──────────────────────────────────────────────────────────────
-  // The detail panel is split into two vertical zones:
-  //   FIXED header zone (non-scrolling, draws septagon + character identity)
-  //   SCROLL body zone (scrollable gear, stats, skills, autobattle)
-  //
-  // The septagon is drawn at scene-level coordinates (parent + header offset)
-  // so the scroll region's texture never clips it.
+  // Split the available width into two scroll regions:
+  //   Left:  50% of width (identity + septagon + stats + gear)
+  //   Right: 50% of width (skills + script + actions)
+  // A small gap separates them.
 
-  const fixedHeaderH = 180 // pixels reserved for fixed header
-  const scrollTopY = y + fixedHeaderH // Y where scroll region starts (in parent coords)
+  const leftW = Math.floor((w - gap) / 2)
+  const rightW = w - leftW - gap
+  const leftX = x
+  const rightX = x + leftW + gap
 
-  // ── Fixed header zone ──────────────────────────────────────────────────
-  // Drawn directly into the parent (scene-relative via parent coords).
-  // This sits at (x, y) within the detail panel.
+  // ── LEFT SCROLL REGION ──────────────────────────────────────────────────
+  // Contains: name, badges, class info, septagon, stats list, gear
+  const leftScroll = makeScrollRegion(scene, parent, leftX, y, leftW, h, {
+    fillColor: THEME.colors.face,
+    strokeColor: THEME.colors.border,
+  })
+  const leftView = leftScroll.content
+
+  let leftY = pad
+  const hoverBandsLeft: HoverBand[] = []
 
   // Name
-  const nameY = y + pad
-  const nameText = uiText(scene, x + pad, nameY, c.name, { size: 'lg' }, parent)
-  const nameH = nameText.height
-  let scrollHeadY = nameY + nameH + 12
+  const nameText = uiText(scene, pad, leftY, c.name, { size: 'lg' }, leftView)
+  // Pencil edit button next to name
+  const pencilText = uiText(scene, pad + nameText.width + 8, leftY, '✎', { size: 'lg', color: textMuted }, leftView)
+  pencilText.setInteractive({ useHandCursor: true })
+  hoverBandsLeft.push({
+    top: leftY,
+    bottom: leftY + nameText.height,
+    payload: () => [],
+    onClick: () => editCharacterName(charId),
+  })
+  leftY += nameText.height + 12
 
   // Badges row
   const badges = [
@@ -88,105 +101,149 @@ export function buildCharacterDetail(
       color: c.durability.kind === 'expires' ? THEME.colors.warn : THEME.colors.good,
     },
   ]
-  let bx = x + pad
+  let bx = pad
   for (const b of badges) {
-    const badge = makeBadge(scene, bx, scrollHeadY, b.label, b.color, {}, parent)
+    const badge = makeBadge(scene, bx, leftY, b.label, b.color, {}, leftView)
     bx += badge.width + 6
   }
-  scrollHeadY += 26
+  leftY += 26
 
   // Meta line
   const metaText = uiText(
     scene,
-    x + pad,
-    scrollHeadY,
+    pad,
+    leftY,
     `${cls.name} · Lv ${c.level} · XP ${c.xp}`,
     { size: 'sm', color: textMuted },
-    parent,
+    leftView,
   )
-  scrollHeadY += metaText.height + 8
+  leftY += metaText.height + 16
 
-  // Septagon — drawn at scene-level Y so the scroll texture won't cover it.
-  // Positioned in the right half of the fixed header zone.
-  const septagonRadius = Math.min(80, (w - pad * 2) / 2 - 20)
-  const septX = x + pad + septagonRadius + 10
-  const septY = scrollHeadY - 10
+  // Septagon — centered in the left panel
+  const septagonRadius = Math.min(80, (leftW - pad * 2) / 2)
+  const septX = leftW / 2
+  const septY = leftY + septagonRadius + 10
+
   drawSeptagon(scene, {
     x: septX,
     y: septY,
     radius: septagonRadius,
     stats,
     classId: c.classId,
-    parent,
+    parent: leftView,
   })
 
-  // ── Scrollable body ───────────────────────────────────────────────────
-  const scrollRegion = makeScrollRegion(scene, parent, x, scrollTopY, w, h - fixedHeaderH, {
-    fillColor: THEME.colors.face,
-    strokeColor: THEME.colors.border,
-  })
-  const view = scrollRegion.content
+  // Position stats list below septagon
+  leftY = septY + septagonRadius + 16
 
-  let scY = pad
-
-  const hoverBands: HoverBand[] = []
+  // STATS label and list
+  uiText(scene, pad, leftY, 'STATS', { size: 'xs', color: heading }, leftView)
+  leftY += 16
+  for (const s of statList(stats)) {
+    uiText(scene, pad, leftY, statLabel(s.key), { size: 'sm', color: textMuted }, leftView)
+    uiText(scene, leftW - pad, leftY, String(s.value), { size: 'sm' }, leftView).setOrigin(1, 0)
+    leftY += 19
+  }
+  leftY += 16
 
   // GEAR
-  uiText(scene, pad, scY, 'GEAR', { size: 'xs', color: heading }, view)
-  scY += 16
+  uiText(scene, pad, leftY, 'GEAR', { size: 'xs', color: heading }, leftView)
+  leftY += 16
   for (const slot of ['weapon', 'armor'] as const) {
     const g = c.gear[slot]
     if (g) {
       const item = getItem(g.itemId)
       const color = THEME.rarity[item.rarity]
-      uiText(scene, pad, scY, `${slot.toUpperCase()}  `, { size: 'sm', color: textMuted }, view)
-      const itemText = uiText(scene, pad + 70, scY, item.name, { size: 'sm', color }, view)
+      uiText(scene, pad, leftY, `${slot.toUpperCase()}  `, { size: 'sm', color: textMuted }, leftView)
+      const itemText = uiText(scene, pad + 70, leftY, item.name, { size: 'sm', color }, leftView)
       uiText(
         scene,
         pad + 70 + itemText.width + 8,
-        scY,
+        leftY,
         `(${durabilityLabel(g.durability)})`,
         { size: 'xs', color: textMuted },
-        view,
+        leftView,
       )
-      hoverBands.push({
-        top: scY,
-        bottom: scY + 20,
+      hoverBandsLeft.push({
+        top: leftY,
+        bottom: leftY + 20,
         payload: () => describeItem(item),
       })
     } else {
-      uiText(scene, pad, scY, `${slot.toUpperCase()}  —`, { size: 'sm', color: textMuted }, view)
+      uiText(scene, pad, leftY, `${slot.toUpperCase()}  —`, { size: 'sm', color: textMuted }, leftView)
     }
-    scY += 20
+    leftY += 20
   }
-  scY += 8
 
-  // STATS
-  uiText(scene, pad, scY, 'STATS', { size: 'xs', color: heading }, view)
-  scY += 16
-  for (const s of statList(stats)) {
-    uiText(scene, pad, scY, statLabel(s.key), { size: 'sm', color: textMuted }, view)
-    uiText(scene, w - pad, scY, String(s.value), { size: 'sm' }, view).setOrigin(1, 0)
-    scY += 19
-  }
-  scY += 8
+  leftScroll.setContentHeight(leftY + pad)
+
+  // Hover tooltips for left scroll region
+  let activeBandLeft: HoverBand | null = null
+  let hoverTimerLeft: Phaser.Time.TimerEvent | null = null
+
+  const bandAtLeft = (contentY: number): HoverBand | null =>
+    hoverBandsLeft.find((b) => contentY >= b.top && contentY < b.bottom) ?? null
+
+  leftScroll.layer.on('pointermove', (pointer: Phaser.Input.Pointer) => {
+    const contentY = leftScroll.worldToContentY(pointer.worldY)
+    const band = bandAtLeft(contentY)
+    if (band === activeBandLeft) return
+    activeBandLeft = band
+    if (hoverTimerLeft) hoverTimerLeft.remove(false)
+    hoverTimerLeft = null
+    if (!band) {
+      hideTooltip(scene)
+      return
+    }
+    hoverTimerLeft = scene.time.delayedCall(150, () => {
+      hoverTimerLeft = null
+      const lines = band.payload()
+      if (lines.length > 0) showTooltip(scene, pointer.worldX, pointer.worldY, lines)
+    })
+  })
+
+  leftScroll.layer.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+    const contentY = leftScroll.worldToContentY(pointer.worldY)
+    const band = bandAtLeft(contentY)
+    if (band?.onClick) {
+      band.onClick()
+    }
+  })
+
+  leftScroll.layer.on('pointerout', () => {
+    if (hoverTimerLeft) hoverTimerLeft.remove(false)
+    hoverTimerLeft = null
+    activeBandLeft = null
+    hideTooltip(scene)
+  })
+
+  // ── RIGHT SCROLL REGION ─────────────────────────────────────────────────
+  // Contains: skills, auto-battle script selector, action buttons
+  const rightScroll = makeScrollRegion(scene, parent, rightX, y, rightW, h, {
+    fillColor: THEME.colors.face,
+    strokeColor: THEME.colors.border,
+  })
+  const rightView = rightScroll.content
+
+  let rightY = pad
 
   // SKILLS
-  uiText(scene, pad, scY, 'SKILLS', { size: 'xs', color: heading }, view)
-  scY += 16
+  uiText(scene, pad, rightY, 'SKILLS', { size: 'xs', color: heading }, rightView)
+  rightY += 16
   const pool = getSkillPool(c)
+  const hoverBandsRight: HoverBand[] = []
   if (pool.length === 0) {
-    const none = uiText(scene, pad, scY, '—', { size: 'xs', color: textMuted }, view)
-    scY += none.height + 8
+    const none = uiText(scene, pad, rightY, '—', { size: 'xs', color: textMuted }, rightView)
+    rightY += none.height + 8
   } else {
     for (const entry of pool) {
       const sourceTag =
         entry.source === 'native' ? 'native' : entry.source === 'learned' ? 'learned' : 'gear'
-      uiText(scene, pad, scY, getSkill(entry.skillId).name, { size: 'xs', color: textMuted }, view)
+      uiText(scene, pad, rightY, getSkill(entry.skillId).name, { size: 'xs', color: textMuted }, rightView)
       const tag = makeBadge(
         scene,
         pad + 110,
-        scY - 2,
+        rightY - 2,
         sourceTag,
         entry.source === 'gear'
           ? THEME.colors.warn
@@ -194,108 +251,136 @@ export function buildCharacterDetail(
             ? THEME.colors.good
             : THEME.colors.textDim,
         {},
-        view,
+        rightView,
       )
       const rowH = Math.max(18, tag.height + 6)
-      hoverBands.push({
-        top: scY,
-        bottom: scY + rowH,
+      hoverBandsRight.push({
+        top: rightY,
+        bottom: rightY + rowH,
         payload: () => describeSkill(getSkill(entry.skillId), { stats }, {}),
       })
-      scY += rowH
+      rightY += rowH
     }
-    scY += 4
+    rightY += 8
   }
 
+  // AUTO BATTLE section
   uiText(
     scene,
     pad,
-    scY,
-    `Runs ${c.earned.runs} · Wins ${c.earned.wins}`,
-    { size: 'xs', color: textMuted },
-    view,
-  )
-  scY += 12
-
-  uiText(
-    scene,
-    pad,
-    scY,
+    rightY,
     'AUTO BATTLE: how this hero fights. Manual = choose every turn.',
-    { size: 'xs', color: textMuted, wordWrap: w - pad * 2 },
-    view,
+    { size: 'xs', color: textMuted, wordWrap: rightW - pad * 2 },
+    rightView,
   )
-  scY += 16
-
-  // AUTO BATTLE selector — pinned in scroll region's live layer
-  const abY = (h - fixedHeaderH) - 86
-  uiText(scene, pad, abY, 'AUTO BATTLE', { size: 'xs', color: heading }, scrollRegion.container)
+  rightY += 20
 
   const scripts = getScripts()
   const options: (string | undefined)[] = [undefined, ...scripts.map((s) => s.id)]
   const curScript = c.scriptId !== undefined && scripts.some((s) => s.id === c.scriptId) ? c.scriptId : undefined
   const label = curScript === undefined ? 'Manual' : scripts.find((s) => s.id === curScript)?.name ?? 'Manual'
-  const scriptName = uiText(scene, pad + 26 + 6, abY + 16, label, {
+
+  uiText(scene, pad, rightY, 'AUTO BATTLE', { size: 'xs', color: heading }, rightView)
+  rightY += 16
+  const scriptName = uiText(scene, pad + 26 + 6, rightY, label, {
     size: 'sm',
     color: curScript === undefined ? THEME.colors.textMuted : THEME.colors.text,
-  }, scrollRegion.container)
+  }, rightView)
 
   const cycle = (delta: number): void => {
     const idx = options.indexOf(curScript)
     const next = options[(idx + delta + options.length) % options.length]
     assignScript(charId, next)
+    // Refresh the whole panel to reflect the change
+    // Note: the parent panel will need to call refresh after this
   }
-  makeButton(scene, pad, abY + 10, '‹', () => cycle(-1), { width: 26, height: 28, fontSize: 'sm' }, scrollRegion.container)
-  makeButton(scene, pad + 26 + 6 + scriptName.width + 6, abY + 10, '›', () => cycle(1), { width: 26, height: 28, fontSize: 'sm' }, scrollRegion.container)
+  makeButton(scene, pad, rightY - 6, '‹', () => cycle(-1), { width: 26, height: 28, fontSize: 'sm' }, rightView)
+  makeButton(scene, pad + 26 + 6 + scriptName.width + 6, rightY - 6, '›', () => cycle(1), { width: 26, height: 28, fontSize: 'sm' }, rightView)
+  rightY += 36
 
   // Footer action buttons
-  const ay = (h - fixedHeaderH) - 44
+  rightY += 8
   let ax = pad
   for (const action of actions) {
     const button = makeButton(
       scene,
       ax,
-      ay,
+      rightY,
       action.label,
       action.onClick,
       { width: 112, height: 32, color: action.color, fontSize: 'sm' },
-      scrollRegion.container,
+      rightView,
     )
     if (action.disabled) button.setDisabled(true)
     ax += 120
   }
+  rightY += 40
 
-  scrollRegion.setContentHeight(scY + 92)
+  rightScroll.setContentHeight(rightY + pad)
 
-  // Hover tooltips for baked scroll content
-  let activeBand: HoverBand | null = null
-  let hoverTimer: Phaser.Time.TimerEvent | null = null
+  // Hover tooltips for right scroll region
+  let activeBandRight: HoverBand | null = null
+  let hoverTimerRight: Phaser.Time.TimerEvent | null = null
 
-  const bandAt = (contentY: number): HoverBand | null =>
-    hoverBands.find((b) => contentY >= b.top && contentY < b.bottom) ?? null
+  const bandAtRight = (contentY: number): HoverBand | null =>
+    hoverBandsRight.find((b) => contentY >= b.top && contentY < b.bottom) ?? null
 
-  scrollRegion.layer.on('pointermove', (pointer: Phaser.Input.Pointer) => {
-    const contentY = scrollRegion.worldToContentY(pointer.worldY)
-    const band = bandAt(contentY)
-    if (band === activeBand) return
-    activeBand = band
-    if (hoverTimer) hoverTimer.remove(false)
-    hoverTimer = null
+  rightScroll.layer.on('pointermove', (pointer: Phaser.Input.Pointer) => {
+    const contentY = rightScroll.worldToContentY(pointer.worldY)
+    const band = bandAtRight(contentY)
+    if (band === activeBandRight) return
+    activeBandRight = band
+    if (hoverTimerRight) hoverTimerRight.remove(false)
+    hoverTimerRight = null
     if (!band) {
       hideTooltip(scene)
       return
     }
-    hoverTimer = scene.time.delayedCall(150, () => {
-      hoverTimer = null
+    hoverTimerRight = scene.time.delayedCall(150, () => {
+      hoverTimerRight = null
       const lines = band.payload()
       if (lines.length > 0) showTooltip(scene, pointer.worldX, pointer.worldY, lines)
     })
   })
 
-  scrollRegion.layer.on('pointerout', () => {
-    if (hoverTimer) hoverTimer.remove(false)
-    hoverTimer = null
-    activeBand = null
+  rightScroll.layer.on('pointerout', () => {
+    if (hoverTimerRight) hoverTimerRight.remove(false)
+    hoverTimerRight = null
+    activeBandRight = null
     hideTooltip(scene)
   })
+
+  function editCharacterName(id: string): void {
+    const profile = getProfile()
+    const ch = profile.characters[id]
+    if (!ch) return
+
+    const input = document.createElement('input')
+    input.type = 'text'
+    input.value = ch.name
+    input.maxLength = 16
+    input.style.cssText = `
+      position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+      padding: 8px 12px; font-size: 14px; border: 2px solid #c9b896;
+      background: #1a1612; color: #e8dfc8; border-radius: 4px; z-index: 10000;
+    `
+    document.body.appendChild(input)
+    input.focus()
+    input.select()
+
+    const submit = () => {
+      const name = input.value.trim()
+      input.remove()
+      if (name && name !== ch.name) {
+        mutate((p) => { p.characters[id].name = name })
+        // The parent panel (PartyPanel or BoxesPanel) will refresh on store notify
+      }
+    }
+
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') submit()
+      if (e.key === 'Escape') { input.remove() }
+    })
+    input.addEventListener('blur', submit)
+  }
 }
