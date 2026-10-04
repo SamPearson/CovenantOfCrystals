@@ -13,6 +13,7 @@ import {
   createProfile,
   AUTOBATTLE_DEFAULTS,
   loadProfile,
+  setActiveProfileId,
 } from './save.service'
 import { ensureBoxCount } from './boxes'
 import { seedStarterRoster } from './starter'
@@ -50,6 +51,8 @@ export function initStore(): SaveFile {
   const existing = loadActiveProfile()
   if (existing) {
     current = existing
+    // Ensure boxes exist for older profiles (migration)
+    ensureBoxCount(current.profile)
   } else {
     // No active profile — create a default one
     current = createProfile()
@@ -499,6 +502,7 @@ export function switchProfile(profileId: string): SaveFile {
   const save = loadProfile(profileId)
   if (!save) throw new Error(`Profile not found: ${profileId}`)
   current = save
+  setActiveProfileId(profileId)
   seedMetaStock()
   notify()
   return current

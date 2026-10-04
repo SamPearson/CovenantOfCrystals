@@ -4,8 +4,7 @@
 
 import Phaser from 'phaser'
 import { THEME, hexColor } from '../theme'
-import { uiText, makeButton, makeScrollRegion, makeBadge } from '../widgets'
-import type { ScrollRegion } from '../widgets'
+import { uiText, makeButton, makeBadge } from '../widgets'
 import { Panel, type PanelRect } from './panel'
 import { listProfiles, getActiveProfileId, switchProfile, deleteProfile, renameProfile, exportProfile, importProfile, duplicateProfile, createProfile } from '../../../core'
 
@@ -15,48 +14,41 @@ interface ProfilePanelConfig extends PanelRect {
 }
 
 export class ProfilePanel extends Panel {
-  private scrollRegion!: ScrollRegion
   private config: ProfilePanelConfig
 
   constructor(config: ProfilePanelConfig) {
     super(config.scene, config)
     this.config = config
 
-    // Header
+    // Header text (added to container, persists across refreshes)
     uiText(this.scene, 16, 12, 'Profiles', {
       size: 'lg',
       color: THEME.colors.gold,
       family: 'display',
     }, this.container)
 
-    // Create new profile button
+    this.refresh()
+
+    // Create header buttons AFTER refresh so they sit on top of content
+    // Create new profile button (added to container, persists across refreshes)
     makeButton(this.scene, this.rect.w - 16 - 120, 12, 'New Profile', () => {
       this.createNewProfile()
     }, { width: 110, height: 30, fontSize: 'sm' }, this.container)
 
-    // Import profile button
+    // Import profile button (added to container, persists across refreshes)
     makeButton(this.scene, this.rect.w - 16 - 120 - 10 - 110, 12, 'Import', () => {
       this.importProfile()
     }, { width: 100, height: 30, fontSize: 'sm', color: THEME.colors.accentBlue }, this.container)
-
-    // Scroll region for profile list
-    const scrollH = this.rect.h - 60
-    this.scrollRegion = makeScrollRegion(this.scene, this.container, 8, 52, this.rect.w - 16, scrollH, {
-      fillColor: THEME.colors.face,
-      strokeColor: THEME.colors.border,
-    })
-
-    this.refresh()
   }
 
   override refresh(): void {
-    this.scrollRegion.content.removeAll(true)
+    const content = this.rebuild()
     const profiles = listProfiles()
     const activeId = getActiveProfileId()
-    let y = 8
+    let y = 52
 
     for (const profile of profiles) {
-      y = this.renderProfileRow(profile, y, profile.profileId === activeId)
+      y = this.renderProfileRow(content, profile, y, profile.profileId === activeId)
     }
 
     if (profiles.length === 0) {
@@ -64,28 +56,26 @@ export class ProfilePanel extends Panel {
         size: 'sm',
         color: THEME.colors.textMuted,
         wordWrap: this.rect.w - 40,
-      }, this.scrollRegion.content)
+      }, content)
       y += 40
     }
-
-    this.scrollRegion.setContentHeight(y + 8)
   }
 
-  private renderProfileRow(profile: { profileId: string; displayName: string; createdAt: number; lastPlayed: number; stats: { totalRuns: number; wins: number; losses: number }; sizeBytes?: number }, y: number, isActive: boolean): number {
+  private renderProfileRow(content: Phaser.GameObjects.Container, profile: { profileId: string; displayName: string; createdAt: number; lastPlayed: number; stats: { totalRuns: number; wins: number; losses: number }; sizeBytes?: number }, y: number, isActive: boolean): number {
     const rowH = 56
     const pad = 12
-    const innerW = this.scrollRegion.container.width - pad * 2 - 8
+    const innerW = this.rect.w - pad * 2
 
     // Row background
     const bg = this.scene.add.rectangle(pad, y + rowH / 2, innerW, rowH - 4, isActive ? THEME.colors.accentBlue : THEME.colors.panel, isActive ? 0.15 : 0)
       .setOrigin(0, 0.5)
       .setStrokeStyle(1, isActive ? THEME.colors.accent : THEME.colors.border, isActive ? 1 : 0.5)
-    this.scrollRegion.content.add(bg)
+    content.add(bg)
 
     // Active indicator
     if (isActive) {
       const dot = this.scene.add.circle(pad + 6, y + rowH / 2, 5, THEME.colors.gold, 1)
-      this.scrollRegion.content.add(dot)
+      content.add(dot)
     }
 
     // Name
@@ -94,14 +84,14 @@ export class ProfilePanel extends Panel {
       color: isActive ? THEME.colors.gold : THEME.colors.text,
       family: 'display',
       wordWrap: innerW - 100,
-    }, this.scrollRegion.content)
+    }, content)
 
     // Stats
     const statsText = `Runs: ${profile.stats.totalRuns}  |  Wins: ${profile.stats.wins}  |  Losses: ${profile.stats.losses}`
     uiText(this.scene, isActive ? pad + 18 : pad + 8, y + nameText.height + 6, statsText, {
       size: 'xs',
       color: THEME.colors.textMuted,
-    }, this.scrollRegion.content)
+    }, content)
 
     // Buttons
     let btnX = this.rect.w - pad - 24
@@ -111,37 +101,37 @@ export class ProfilePanel extends Panel {
 
     // Switch / Current
     if (isActive) {
-      makeBadge(this.scene, btnX - btnW, y + (rowH - btnH) / 2, 'Active', THEME.colors.good, { width: btnW, height: btnH }, this.scrollRegion.content)
+      makeBadge(this.scene, btnX - btnW, y + (rowH - btnH) / 2, 'Active', THEME.colors.good, { width: btnW, height: btnH }, content)
       btnX -= btnW + gap
     } else {
       makeButton(this.scene, btnX - btnW, y + (rowH - btnH) / 2, 'Switch', () => {
         this.switchToProfile(profile.profileId)
-      }, { width: btnW, height: btnH, fontSize: 'xs', color: THEME.colors.accent }, this.scrollRegion.content)
+      }, { width: btnW, height: btnH, fontSize: 'xs', color: THEME.colors.accent }, content)
       btnX -= btnW + gap
     }
 
     // Duplicate
     makeButton(this.scene, btnX - btnW, y + (rowH - btnH) / 2, 'Duplicate', () => {
       this.duplicateProfile(profile.profileId)
-    }, { width: btnW, height: btnH, fontSize: 'xs' }, this.scrollRegion.content)
+    }, { width: btnW, height: btnH, fontSize: 'xs' }, content)
     btnX -= btnW + gap
 
     // Rename
     makeButton(this.scene, btnX - btnW, y + (rowH - btnH) / 2, 'Rename', () => {
       this.renameProfile(profile.profileId)
-    }, { width: btnW, height: btnH, fontSize: 'xs' }, this.scrollRegion.content)
+    }, { width: btnW, height: btnH, fontSize: 'xs' }, content)
     btnX -= btnW + gap
 
     // Export
     makeButton(this.scene, btnX - btnW, y + (rowH - btnH) / 2, 'Export', () => {
       this.exportProfile(profile.profileId)
-    }, { width: btnW, height: btnH, fontSize: 'xs' }, this.scrollRegion.content)
+    }, { width: btnW, height: btnH, fontSize: 'xs' }, content)
     btnX -= btnW + gap
 
     // Delete
     makeButton(this.scene, btnX - btnW, y + (rowH - btnH) / 2, 'Delete', () => {
       this.confirmDeleteProfile(profile)
-    }, { width: btnW, height: btnH, fontSize: 'xs', color: hexColor(THEME.colors.bad), labelColor: THEME.colors.textOnAccent }, this.scrollRegion.content)
+    }, { width: btnW, height: btnH, fontSize: 'xs', color: hexColor(THEME.colors.bad), labelColor: THEME.colors.textOnAccent }, content)
     btnX -= btnW + gap
 
     return y + rowH + 4
