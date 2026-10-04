@@ -60,7 +60,7 @@ const REACTION_EVENT_BUDGET = 200
  * object lands in the turn log, `battle.log` (post-battle review) and
  * `battle.logger` (live HUD), so both combat log views can render the math.
  */
-type LogDetail = Partial<Pick<BattleLogEntry, 'advanced' | 'damageMath' | 'healMath' | 'speedMath'>>
+type LogDetail = Partial<Pick<BattleLogEntry, 'advanced' | 'simple' | 'text' | 'damageMath' | 'healMath' | 'speedMath'>>
 
 /** Creates a seeded battle state: party vs. enemy squad on a shared CTB queue. */
 export function createBattle(
@@ -177,8 +177,8 @@ export function performAction(
       id: battle.log.length,
       turn,
       actorId: who,
-      text,
-      simple: text,
+      text: detail?.text ?? text,
+      simple: detail?.simple ?? text,
       advanced: detail?.advanced ?? text,
       ...(detail?.damageMath ? { damageMath: detail.damageMath } : {}),
       ...(detail?.healMath ? { healMath: detail.healMath } : {}),
@@ -397,7 +397,9 @@ function castSkill(
         crit,
       )
       dealDamage(battle, actor, target, damage, push, undefined, {
-        advanced: `${actor.name} hits ${target.name} for ${damage}. (${formatDamageMath(damageMath)})`,
+        advanced: `${actor.name} uses ${skill.name} on ${target.name} for ${damage}. (${formatDamageMath(damageMath)})`,
+        simple: `${actor.name} uses ${skill.name} on ${target.name} for ${damage}.`,
+        text: `${actor.name} uses ${skill.name} on ${target.name} for ${damage}.`,
         damageMath,
       })
     }
@@ -553,7 +555,8 @@ function dealDamage(
     battle.pendingEvents.push({ kind: 'ally-kod', actorId: target.id, sourceId: attacker.id })
     push(`${target.name} falls.`, attacker.id)
   } else {
-    push(`${attacker.name} hits ${target.name} for ${damage}.`, attacker.id, detail)
+    const defaultText = `${attacker.name} hits ${target.name} for ${damage}.`
+    push(defaultText, attacker.id, { ...detail, simple: detail?.simple ?? defaultText, text: detail?.text ?? defaultText })
   }
   return fallbackDelay ?? 0
 }
