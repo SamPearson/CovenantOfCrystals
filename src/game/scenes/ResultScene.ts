@@ -23,6 +23,7 @@ import { initStore, getProfile } from '../../core/store'
 import { getItem } from '../../core/data'
 import { findGearById } from '../../core/inventory'
 import { describeItem, type TooltipLine } from '../../core/tooltips'
+import { CombatLogPanel } from '../ui/panels/combat-log'
 import type { ItemDef, RunResult } from '../../core/types'
 
 /** Data ResultScene accepts from RunScene at run-end. */
@@ -143,6 +144,23 @@ export class ResultScene extends Phaser.Scene {
       }
     } else {
       uiText(this, cx, y, 'The party was wiped out.', { size: 'sm', color: THEME.colors.bad }, undefined)
+    }
+
+    // Combat log button (only show if battle log is available from final battle)
+    if (result.battleLog && result.battleLog.length > 0) {
+      makeButton(this, PANEL_X + 32, PANEL_Y + PANEL_H - 56, 'View Combat Log', () => {
+        const panel = new CombatLogPanel({
+          scene: this,
+          parent: this.add.container(0, 0),
+          x: (this.scale.width - 700) / 2,
+          y: (this.scale.height - 500) / 2,
+          width: 700,
+          height: 500,
+          entries: result.battleLog!,
+          onClose: () => panel.destroy(),
+        })
+        panel.container.setDepth(1000)
+      }, { width: 160, height: 40 })
     }
 
     makeButton(this, PANEL_X + PANEL_W - 360, PANEL_Y + PANEL_H - 56, 'New Run', () => this.scene.start('RunScene'), {
