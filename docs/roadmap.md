@@ -126,7 +126,7 @@ working document — update it as decisions land.
 | 5 | Full-wipe behavior? | **Run ends, party = 0 characters**, rebuild from boxes/recruitment (`combat.md` §6) |
 | 6 | How are new characters recruited? | **NPC / recruitment menu, pay gold** between runs; random generation (`metagame.md` §2) |
 | 7 | Elemental type chart in v1? | **Yes** — weakness/resistance chart (`party-and-equipment.md` §5) |
-| 8 | Fixed-length vs. endless? | **Fixed-length**; endless is a later mode (`runs-and-gauntlet.md` §1) |
+| 8 | Fixed-length vs. endless? | **Fixed-length** default; **Infinite mode** toggle (infinite, character persistence, loop tracking) (`runs-and-gauntlet.md` §1) |
 | 9 | Mid-battle saves? | **No** — between battles / checkpoints only (`autobattle-and-idle.md` §4) |
 | 10 | Background-tab behavior? | **Keep running** (hidden tab continues autobattling) (`autobattle-and-idle.md` §4) |
 | 11 | Character names? | **Auto-generated, player-editable** (`party-and-equipment.md` §1) |
