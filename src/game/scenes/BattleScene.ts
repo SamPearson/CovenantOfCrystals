@@ -183,6 +183,7 @@ export class BattleScene extends Phaser.Scene {
     // removes it from the shared profile and all player actors' lists.
     this.seedBattleItems()
     this.seedLabel.setText(`Seed ${this.seed}`)
+    this.buildLogPanel(this.partyRowY + CARD_H + 8)
     this.pump()
   }
 
@@ -222,7 +223,10 @@ export class BattleScene extends Phaser.Scene {
     this.actionPanel = makePanel(this, pad, actionY, ACTION_PANEL_W, this.scale.height - actionY - pad, {}, this.root)
     this.actionPrompt = uiText(this, pad, actionY + 10, '', { size: 'sm', color: t.gold, family: 'display' }, this.root)
     this.actionPrompt.setOrigin(0, 0)
+  }
 
+  private buildLogPanel(actionY: number): void {
+    const { pad } = THEME.spacing
     // Inline combat log with Simple/Advanced toggle
     this.inlineLog = createInlineCombatLog(
       this,
