@@ -5,6 +5,45 @@
 
 import type { CharacterScript, EventPattern } from './scripting/types'
 
+export interface DamageMath {
+  base: number
+  atkStat: number
+  defStat: number
+  ratio: number
+  elementMult: number
+  defendMult: number
+  varianceMult: number
+  critMult: number
+  final: number
+}
+
+export interface HealMath {
+  basePower: number
+  mag: number
+  magRef: number
+  final: number
+}
+
+export interface SpeedMath {
+  spd: number
+  actionDelay: number
+  spdRef: number
+  timeToNext: number
+  nextAt: number
+}
+
+export interface BattleLogEntry {
+  id: number
+  turn: number
+  actorId?: string
+  text: string
+  simple: string
+  advanced: string
+  damageMath?: DamageMath
+  healMath?: HealMath
+  speedMath?: SpeedMath
+}
+
 export type StatKey = 'hp' | 'mp' | 'atk' | 'def' | 'mag' | 'res' | 'spd'
 
 export interface StatBlock {
@@ -285,6 +324,8 @@ export interface RunResult {
   /** Permanent GearInstance ids (P3 gear is all-permanent, decision S5). */
   gearBanked: string[]
   xpGained: Record<string, number>
+  /** Structured combat log entries from the final battle (for post-battle review). */
+  battleLog?: BattleLogEntry[]
 }
 
 /**

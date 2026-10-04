@@ -8,9 +8,11 @@
  * live CTB queue; no derived state is stored beyond it.
  */
 
-import type { StatBlock, StatKey, Element, AiProfileId } from '../types'
+import type { StatBlock, StatKey, Element, AiProfileId, BattleLogEntry } from '../types'
 import type { CharacterScript, EventKind } from '../scripting/types'
 import type { BattleLogger } from './logger'
+
+export type { BattleLogEntry }
 
 export type CombatantSide = 'player' | 'enemy'
 
@@ -120,14 +122,6 @@ export interface BattleActor {
   items?: string[]
   /** AI profile for enemy actors (`docs/combat.md` §8). */
   aiProfile?: AiProfileId
-}
-
-export interface BattleLogEntry {
-  id: number
-  /** Global resolved-turn counter at the event. */
-  turn: number
-  actorId?: string
-  text: string
 }
 
 export interface TurnOutcome {

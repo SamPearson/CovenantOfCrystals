@@ -5,7 +5,7 @@
  * three run-end states (victory / full wipe / abandon). Pure + Phaser-free.
  */
 
-import type { BattleResult } from '../combat/types'
+import type { BattleResult, BattleLogEntry } from '../combat/types'
 import { createRng, hashString, type Rng } from '../rng/rng'
 import type { ActiveRun, PlayerProfile, RunResult } from '../types'
 import { addGear } from '../inventory'
@@ -82,6 +82,7 @@ function buildResult(
   survivors: string[],
   koIds: string[],
   xpGained: Record<string, number>,
+  battleLog?: BattleLogEntry[],
 ): RunResult {
   const banking = bankRunRewards(run, profile)
   const status = run.status === 'won' ? 'won' : run.status === 'lost' ? 'lost' : 'abandoned'
@@ -93,6 +94,7 @@ function buildResult(
     itemsBanked: banking.itemsBanked,
     gearBanked: banking.gearBanked,
     xpGained,
+    battleLog,
   }
 }
 
@@ -148,7 +150,7 @@ export function resolveBattleResult(
     }
     if (node.type === 'boss') {
       run.status = 'won'
-      return buildResult(run, profile, survivors, battleResult.koIds, reward.xp)
+      return buildResult(run, profile, survivors, battleResult.koIds, reward.xp, battleResult.log)
     }
     advanceNode(run)
     return null
@@ -162,12 +164,12 @@ export function resolveBattleResult(
       return null
     }
     run.status = 'lost'
-    return buildResult(run, profile, [], battleResult.koIds, {})
+    return buildResult(run, profile, [], battleResult.koIds, {}, battleResult.log)
   }
 
   // 4. Fled — the party escaped the battle; run ends as abandoned.
   run.status = 'abandoned'
-  return buildResult(run, profile, survivors, battleResult.koIds, {})
+  return buildResult(run, profile, survivors, battleResult.koIds, {}, battleResult.log)
 }
 
 /**

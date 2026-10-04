@@ -166,8 +166,9 @@ export function performAction(
 
   const log: BattleLogEntry[] = []
   const push = (text: string, who?: string): void => {
-    log.push({ id: battle.log.length, turn, actorId: who, text })
-    battle.log.push(log[log.length - 1]!)
+    const entry: BattleLogEntry = { id: battle.log.length, turn, actorId: who, text, simple: text, advanced: text }
+    log.push(entry)
+    battle.log.push(entry)
   }
 
   // Reactions scheduled for this clock tick resolve before the turn plays.

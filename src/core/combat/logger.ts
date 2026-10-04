@@ -8,45 +8,7 @@
 import { BALANCE } from '../data/balance'
 import { elementMultiplier } from '../data/elements'
 import { timeToNextTurn } from './timeline'
-
-export interface DamageMath {
-  base: number
-  atkStat: number
-  defStat: number
-  ratio: number
-  elementMult: number
-  defendMult: number
-  varianceMult: number
-  critMult: number
-  final: number
-}
-
-export interface HealMath {
-  basePower: number
-  mag: number
-  magRef: number
-  final: number
-}
-
-export interface SpeedMath {
-  spd: number
-  actionDelay: number
-  spdRef: number
-  timeToNext: number
-  nextAt: number
-}
-
-export interface BattleLogEntry {
-  id: number
-  turn: number
-  actorId?: string
-  text: string
-  simple: string
-  advanced: string
-  damageMath?: DamageMath
-  healMath?: HealMath
-  speedMath?: SpeedMath
-}
+import type { BattleLogEntry, DamageMath, HealMath, SpeedMath } from '../types'
 
 export interface BattleLogger {
   entries: BattleLogEntry[]
