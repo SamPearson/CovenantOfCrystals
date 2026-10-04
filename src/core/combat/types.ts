@@ -177,6 +177,8 @@ export interface BattleResult {
   koIds: string[]
   /** Surviving party character IDs. */
   survivors: string[]
+  /** HP remaining for each surviving party member (for infinite mode). */
+  survivorHp?: Record<string, number>
   xpAwarded: Record<string, number>
   drops: Loot[]
   log: BattleLogEntry[]

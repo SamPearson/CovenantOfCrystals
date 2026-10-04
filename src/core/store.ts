@@ -107,8 +107,12 @@ export function getActiveRun(): ActiveRun | null {
  * Starts a run of the given length with the given party snapshot, replacing
  * any prior (finished or in-progress) run.
  */
-export function startRun(partyIds: string[], length: number, seed: number): ActiveRun {
+export function startRun(partyIds: string[], length: number, seed: number, opts?: { infinite?: boolean }): ActiveRun {
   const run = generateRun(current.profile.profileId, partyIds, length, seed)
+  if (opts?.infinite) {
+    run.infinite = true
+    run.loops = 0
+  }
   current.activeRun = run
   writeSave(current)
   notify()

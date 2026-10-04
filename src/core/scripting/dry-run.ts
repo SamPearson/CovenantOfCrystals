@@ -80,6 +80,8 @@ export function applyDryRunMocks(
     if (mock.mpFraction !== undefined) {
       const maxMp = actor.maxMp ?? 0
       actor.mp = Math.round(clamp(mock.mpFraction, 1) * maxMp)
+      // Dead actors (hp ≤ 0) have no MP.
+      if (actor.hp <= 0) actor.mp = 0
     }
     if (mock.statuses !== undefined) {
       actor.statuses = mock.statuses.map((kind) => ({ kind, duration: 999 }))

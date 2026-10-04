@@ -73,13 +73,13 @@ export function createBattle(
       side: 'player',
       name: c.name,
       stats,
-      hp: stats.hp,
-      mp: stats.mp,
+      hp: c.hp ?? stats.hp,
+      mp: c.mp ?? stats.mp,
       statuses: [],
       ko: false,
       element: classDef.element,
       skills: c.loadout.slice(),
-      maxMp: stats.mp,
+      maxMp: c.mp ?? stats.mp,
       cooldowns: {},
       defending: false,
       ownTurn: 0,
@@ -766,10 +766,15 @@ export function choosePartyAction(
 export function getBattleResult(battle: BattleState): BattleResult {
   if (!battle.over) throw new Error('battle is not over yet')
   const party = Object.values(battle.actors).filter((a) => a.side === 'player')
+  const survivorHp: Record<string, number> = {}
+  for (const a of party) {
+    if (!a.ko) survivorHp[a.id] = a.hp
+  }
   return {
     status: battle.status as BattleResult['status'],
     koIds: party.filter((a) => a.ko).map((a) => a.sourceId),
     survivors: party.filter((a) => !a.ko).map((a) => a.sourceId),
+    survivorHp,
     // EnemyDefs carry no xp/drops yet — shapes are emitted empty (Phase 3/5 fills them).
     xpAwarded: {},
     drops: [],

@@ -181,6 +181,10 @@ export interface Character {
   scriptId?: string
   /** Per-character auto/manual toggle that persists across battles. 'auto' = use scriptId; 'manual' = player control. */
   scriptMode?: 'auto' | 'manual'
+  /** Current HP (0 while KO'd). Persisted across battles for infinite mode (Phase 5). */
+  hp?: number
+  /** Current MP. Persisted across battles for infinite mode (Phase 5). */
+  mp?: number
 }
 
 export interface Inventory {
@@ -249,6 +253,10 @@ export interface ActiveRun {
   /** itemIds banked; converted to inventory at run resolution (S8). */
   drops: string[]
   status: RunStatus
+  /** Infinite mode: characters stay alive at HP 0, runs loop endlessly. */
+  infinite?: boolean
+  /** How many times the run has looped (infinite mode only). */
+  loops?: number
 }
 
 export type RunStatus = 'active' | 'won' | 'lost' | 'abandoned'
