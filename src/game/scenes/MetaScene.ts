@@ -1,7 +1,7 @@
 import Phaser from 'phaser'
 import { THEME, colorHex, setTheme } from '../ui/theme'
 import { initThemes, getActiveTheme, themesEqual, subscribeThemes } from '../../core/themes'
-import { uiText, makeButton, type Button } from '../ui/widgets'
+import { uiText, makeButton, makeDropdown, type Button, type Dropdown, type DropdownOption } from '../ui/widgets'
 import { STONE_BG_KEY, createStoneTextures } from '../ui/textures'
 import { showThemeEditor, hideThemeEditor } from '../ui/theme-editor'
 import { hideScriptEditor, isScriptEditorVisible } from '../ui/script-editor-panel'
@@ -25,7 +25,23 @@ import {
 
 type PanelId = 'boxes' | 'party' | 'equip' | 'inventory' | 'apply' | 'shop' | 'recruit' | 'automation' | 'profile' | 'theme'
 
-const TAB_IDS: PanelId[] = ['boxes', 'party', 'equip', 'inventory', 'apply', 'shop', 'recruit', 'automation', 'profile', 'theme']
+/** Tab groups for dropdown organization. */
+type TabGroupId = 'tavern' | 'armory' | 'automation' | 'profile' | 'theme'
+
+const TAB_GROUPS: TabGroupId[] = ['tavern', 'armory', 'automation', 'profile', 'theme']
+
+const TAB_GROUP_LABELS: Record<TabGroupId, string> = {
+  tavern: 'Tavern',
+  armory: 'Armory',
+  automation: 'Automation',
+  profile: 'Profiles',
+  theme: 'Theme',
+}
+
+/** Panels that belong to each dropdown group. */
+const TAVERN_PANELS: PanelId[] = ['boxes', 'party', 'recruit']
+const ARMORY_PANELS: PanelId[] = ['equip', 'inventory', 'apply', 'shop']
+
 const TAB_LABELS: Record<PanelId, string> = {
   boxes: 'Boxes',
   party: 'Party',
@@ -48,7 +64,7 @@ let lastActiveTab: PanelId = 'boxes'
 
 export class MetaScene extends Phaser.Scene {
   private panels!: Record<Exclude<PanelId, 'theme'>, Panel>
-  private tabButtons: Button[] = []
+  private tabButtons: (Button | Dropdown)[] = []
   private active: PanelId = 'boxes'
   private headerGold!: Phaser.GameObjects.Text
   private headerProfile!: Phaser.GameObjects.Text
@@ -231,23 +247,74 @@ export class MetaScene extends Phaser.Scene {
     this.tabButtons = []
     let x = THEME.spacing.pad
     const y = THEME.header.height + 4
-    for (const id of TAB_IDS) {
-      const isActive = id === active
-      const button = makeButton(
-        this,
-        x,
-        y,
-        TAB_LABELS[id],
-        () => this.showTab(id),
-        {
-          width: 96,
-          height: THEME.tabs.height - 8,
-          color: isActive ? THEME.colors.accent : THEME.colors.accentBlue,
-          labelColor: isActive ? THEME.colors.textOnAccent : colorHex(THEME.colors.borderLight),
-        },
-      )
-      this.tabButtons.push(button)
-      x += 104
+
+    for (const groupId of TAB_GROUPS) {
+      const isActiveGroup = this.isGroupActive(groupId, active)
+      const groupPanels = this.getGroupPanels(groupId)
+
+      if (groupPanels.length > 1) {
+        // Dropdown group (Tavern, Armory)
+        const options: DropdownOption[] = groupPanels.map((panelId) => ({
+          label: TAB_LABELS[panelId],
+          onClick: () => this.showTab(panelId),
+          disabled: panelId === active,
+        }))
+
+        const dropdown = makeDropdown(
+          this,
+          x,
+          y,
+          TAB_GROUP_LABELS[groupId],
+          options,
+          {
+            width: 110,
+            height: THEME.tabs.height - 8,
+            color: isActiveGroup ? THEME.colors.accent : THEME.colors.accentBlue,
+            labelColor: isActiveGroup ? THEME.colors.textOnAccent : colorHex(THEME.colors.borderLight),
+          },
+        )
+        this.tabButtons.push(dropdown)
+        x += 118
+      } else {
+        // Single tab (Automation, Profiles, Theme)
+        const panelId = groupPanels[0]
+        const isActive = panelId === active
+        const button = makeButton(
+          this,
+          x,
+          y,
+          TAB_GROUP_LABELS[groupId],
+          () => this.showTab(panelId),
+          {
+            width: 110,
+            height: THEME.tabs.height - 8,
+            color: isActive ? THEME.colors.accent : THEME.colors.accentBlue,
+            labelColor: isActive ? THEME.colors.textOnAccent : colorHex(THEME.colors.borderLight),
+          },
+        )
+        this.tabButtons.push(button)
+        x += 118
+      }
+    }
+  }
+
+  private isGroupActive(groupId: TabGroupId, activePanel: PanelId): boolean {
+    const panels = this.getGroupPanels(groupId)
+    return panels.includes(activePanel)
+  }
+
+  private getGroupPanels(groupId: TabGroupId): PanelId[] {
+    switch (groupId) {
+      case 'tavern':
+        return TAVERN_PANELS
+      case 'armory':
+        return ARMORY_PANELS
+      case 'automation':
+        return ['automation']
+      case 'profile':
+        return ['profile']
+      case 'theme':
+        return ['theme']
     }
   }
 

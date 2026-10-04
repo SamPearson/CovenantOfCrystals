@@ -15,7 +15,7 @@ export interface PanelRect {
  */
 export abstract class Panel {
   readonly container: Phaser.GameObjects.Container
-  private content: Phaser.GameObjects.Container
+  protected content: Phaser.GameObjects.Container
 
   constructor(
     protected scene: Phaser.Scene,
