@@ -26,6 +26,8 @@ function makeProfile(): PlayerProfile {
     recruitment: [],
     scriptLibrary: [],
     createdAt: 0,
+    homeTown: 'aldwyn',
+    hasSeenTownSelect: false,
   }
 }
 

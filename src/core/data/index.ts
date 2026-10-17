@@ -2,18 +2,20 @@ import { CLASSES } from './classes'
 import { SKILLS } from './skills'
 import { ITEMS } from './items'
 import { ENEMIES } from './enemies'
+import { TOWNS, TOWN_IDS, getTown, getDefaultTown } from './towns'
 import type { ClassDef, SkillDef, ItemDef, EnemyDef } from '../types'
 
 /**
  * Data loaders. Code never reaches into raw data maps directly — always go
  * through these, so lookups are validated and swapable (Stage 2: mock API).
  */
-export { CLASSES, SKILLS, ITEMS, ENEMIES }
+export { CLASSES, SKILLS, ITEMS, ENEMIES, TOWNS, TOWN_IDS, getTown, getDefaultTown }
 export { AI_SCRIPTS, getAiScript } from './ai'
 export { PLAYER_AI_SCRIPTS, getPlayerAiScript, defaultPresetFor } from './ai-presets'
 export { elementMultiplier, ELEMENT_CHART, ELEMENTS } from './elements'
 export { BALANCE } from './balance'
 export type { BalanceConfig } from './balance'
+export type { TownDef } from './towns'
 
 const classesById = new Map<string, ClassDef>(CLASSES.map((c) => [c.id, c]))
 

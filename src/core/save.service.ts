@@ -12,7 +12,7 @@ import { CLASSES } from './data/classes'
 import type { CharacterScript } from './scripting/types'
 import { getBackend, STORAGE_KEYS, type ProfileMeta } from './storage'
 
-export const SCHEMA_VERSION = 4
+export const SCHEMA_VERSION = 5
 
 /** All classes are recruitable from the start (sandbox mode, docs/roadmap.md). */
 export const ALL_CLASSES: string[] = CLASSES.map((c) => c.id)
@@ -206,6 +206,8 @@ export function createNewSave(profileId?: string, displayName?: string): SaveFil
       recruitment: [],
       createdAt: Date.now(),
       scriptLibrary: BUILT_IN_SCRIPTS.map(cloneScript),
+      homeTown: 'aldwyn',
+      hasSeenTownSelect: false,
     },
   }
 }
@@ -231,6 +233,7 @@ function migrateSave(save: SaveFile): SaveFile {
   if (save.schemaVersion < 2) migrateV1ToV2(save)
   if (save.schemaVersion < 3) migrateV2ToV3(save)
   if (save.schemaVersion < 4) migrateV3ToV4(save)
+  if (save.schemaVersion < 5) migrateV4ToV5(save)
   save.schemaVersion = SCHEMA_VERSION
   return save
 }
@@ -276,4 +279,14 @@ function migrateV3ToV4(save: SaveFile): void {
     if (!unlocked.includes(classId)) unlocked.push(classId)
   }
   save.schemaVersion = 4
+}
+
+/**
+ * v4 → v5 (Phase 5 Towns): adds homeTown and hasSeenTownSelect fields.
+ * Defaults to 'aldwyn' and false for backward compatibility.
+ */
+function migrateV4ToV5(save: SaveFile): void {
+  if (!save.profile.homeTown) save.profile.homeTown = 'aldwyn'
+  if (typeof save.profile.hasSeenTownSelect !== 'boolean') save.profile.hasSeenTownSelect = false
+  save.schemaVersion = 5
 }

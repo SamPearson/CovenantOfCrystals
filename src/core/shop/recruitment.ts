@@ -5,11 +5,15 @@
  *
  * `generateRecruitOffers` is pure/seeded; `recruit` mutates the profile the
  * same way the other core modules do (the store wraps it in `mutate()` later).
+ *
+ * Phase 5: Town-aware recruitment — each town has its own class pool, weights,
+ * and level range.
  */
 
 import { BALANCE } from '../data/balance'
+import { TOWNS } from '../data'
 import type { PlayerProfile, RecruitOffer } from '../types'
-import { pick, type Rng } from '../rng/rng'
+import { weightedPick, intBetween, type Rng } from '../rng/rng'
 import { createCharacter } from '../character'
 import { uuid } from '../id'
 import { addCharacterToBox, ensureBoxCount } from '../boxes'
@@ -20,17 +24,22 @@ export interface RecruitActionResult {
   error?: string
 }
 
-/** Generates `count` level-1 permanent offers from the unlocked classes. */
+/** Generates `count` permanent offers from the unlocked classes, filtered by town. */
 export function generateRecruitOffers(
   rng: Rng,
   unlockedClasses: string[],
   count: number,
+  townId: string = 'aldwyn'
 ): RecruitOffer[] {
-  if (unlockedClasses.length === 0) return []
+  const town = TOWNS[townId] ?? TOWNS.aldwyn
+  const available = unlockedClasses.filter((c) => town.recruitClassPool.includes(c))
+  if (available.length === 0) return []
   const offers: RecruitOffer[] = []
+  const [minLevel, maxLevel] = town.recruitLevelRange ?? [1, 1]
   for (let i = 0; i < count; i++) {
-    const classId = pick(rng, unlockedClasses)
-    const character = createCharacter({ classId, level: 1, rng })
+    const classId = weightedPick(rng, available, (c) => town.recruitClassWeights?.[c] ?? 1)
+    const level = intBetween(rng, minLevel, maxLevel)
+    const character = createCharacter({ classId, level, rng })
     offers.push({
       id: uuid(),
       character,
@@ -40,10 +49,10 @@ export function generateRecruitOffers(
   return offers
 }
 
-/** Regenerates `profile.recruitment` with 2–3 offers (call at run completion). */
-export function refreshRecruitment(profile: PlayerProfile, rng: Rng): RecruitOffer[] {
+/** Regenerates `profile.recruitment` with 2–3 offers for a specific town (call at run completion). */
+export function refreshRecruitment(profile: PlayerProfile, rng: Rng, townId: string = 'aldwyn'): RecruitOffer[] {
   const count = 2 + Math.floor(rng() * 2)
-  profile.recruitment = generateRecruitOffers(rng, profile.unlockedClasses, count)
+  profile.recruitment = generateRecruitOffers(rng, profile.unlockedClasses, count, townId)
   return profile.recruitment
 }
 

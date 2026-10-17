@@ -32,6 +32,7 @@ import { uuid } from './id'
 import { validateScriptDepth } from './scripting/interpreter'
 import { SCRIPT_LIBRARY_CAP } from './scripting/types'
 import type { CharacterScript } from './scripting/types'
+import { TOWNS } from './data'
 
 type Listener = () => void
 
@@ -69,16 +70,19 @@ export function initStore(): SaveFile {
  * first init so the meta tabs are populated before the first run. Fresh saves
  * (M4 core) start with empty rotating stock and offers; pre-M7 saves are the
  * same. After the first run completion `onRunEnd` regains control of both.
+ *
+ * Phase 5: Uses the profile's homeTown for town-aware stock generation.
  */
 function seedMetaStock(): void {
   const profile = current.profile
+  const townId = profile.homeTown ?? 'aldwyn'
   const rotating = profile.shop.rotating
   const stockEmpty = rotating.gear.length === 0 && rotating.skills.length === 0
   const offersEmpty = profile.recruitment.length === 0
   if (!stockEmpty && !offersEmpty) return
   const rng = createRng(Date.now() + profile.stats.totalRuns + 1)
-  if (stockEmpty) refreshShopStock(profile, rng)
-  if (offersEmpty) refreshRecruitment(profile, rng)
+  if (stockEmpty) refreshShopStock(profile, rng, townId)
+  if (offersEmpty) refreshRecruitment(profile, rng, townId)
   saveProfile(current)
 }
 
@@ -116,9 +120,11 @@ export function getActiveRun(): ActiveRun | null {
 /**
  * Starts a run of the given length with the given party snapshot, replacing
  * any prior (finished or in-progress) run.
+ * Phase 5: Accepts optional townId for town-aware run generation.
  */
-export function startRun(partyIds: string[], length: number, seed: number, opts?: { infinite?: boolean }): ActiveRun {
-  const run = generateRun(current.profile.profileId, partyIds, length, seed)
+export function startRun(partyIds: string[], length: number, seed: number, opts?: { infinite?: boolean; townId?: string }): ActiveRun {
+  const townId = opts?.townId ?? current.profile.homeTown ?? 'aldwyn'
+  const run = generateRun({ profileId: current.profile.profileId, partyIds, length, seed, townId })
   if (opts?.infinite) {
     run.infinite = true
     run.loops = 0
@@ -337,9 +343,11 @@ function onRunEnd(stats: { won: boolean; lost: boolean }): void {
   if (stats.lost) s.losses += 1
   // Phase 3 M7: the shop's rotating stock and the recruitment offers
   // regenerate after every run completion (decisions S10/S6).
+  // Phase 5: Uses the profile's homeTown for town-aware refresh.
+  const townId = current.profile.homeTown ?? 'aldwyn'
   const rng = createRng(Date.now() + s.totalRuns)
-  refreshShopStock(current.profile, rng)
-  refreshRecruitment(current.profile, rng)
+  refreshShopStock(current.profile, rng, townId)
+  refreshRecruitment(current.profile, rng, townId)
 }
 
 function profileStats(status: 'won' | 'lost' | 'abandoned'): { won: boolean; lost: boolean } {
@@ -506,4 +514,36 @@ export function switchProfile(profileId: string): SaveFile {
   seedMetaStock()
   notify()
   return current
+}
+
+// ---------------------------------------------------------------------------
+// Town selection (Phase 5)
+// ---------------------------------------------------------------------------
+
+/** Sets the profile's home town and refreshes meta stock for the new town. */
+export function setHomeTown(townId: string): void {
+  if (!TOWNS[townId]) throw new Error(`Unknown town: ${townId}`)
+  mutate((profile) => {
+    profile.homeTown = townId
+    // Reset seen flag so town select shows on next meta visit (optional)
+    // profile.hasSeenTownSelect = false
+  })
+  // Immediately refresh shop/recruitment for the new town
+  const rng = createRng(Date.now() + current.profile.stats.totalRuns + 2)
+  refreshShopStock(current.profile, rng, townId)
+  refreshRecruitment(current.profile, rng, townId)
+  saveProfile(current)
+  notify()
+}
+
+/** Marks the town selection screen as seen (tutorial flag). */
+export function markTownSelectSeen(): void {
+  mutate((profile) => {
+    profile.hasSeenTownSelect = true
+  })
+}
+
+/** Gets the current home town. */
+export function getHomeTown(): string {
+  return current.profile.homeTown ?? 'aldwyn'
 }

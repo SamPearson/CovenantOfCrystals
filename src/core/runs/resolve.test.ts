@@ -20,7 +20,7 @@ function makeContext() {
   seedStarterRoster(profile)
   const partyIds = Object.keys(profile.characters).slice(0, 3)
   for (const id of partyIds) addToParty(profile, id)
-  const run = generateRun(profile.profileId, partyIds, 3, 42)
+  const run = generateRun({ profileId: profile.profileId, partyIds, length: 3, seed: 42 })
   const battle = (partial: {
     status: BattleResult['status']
     koIds?: string[]

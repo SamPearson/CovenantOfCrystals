@@ -149,7 +149,7 @@ describe('hard stops are not configurable', () => {
     const profile = getProfile()
     seedStarterRoster(profile)
     const partyIds = Object.keys(profile.characters).slice(0, 3)
-    const run = generateRun(profile.profileId, partyIds, 3, 7)
+    const run = generateRun({ profileId: profile.profileId, partyIds, length: 3, seed: 7 })
     startRun(partyIds, 3, 7)
     return { run, partyIds }
   }

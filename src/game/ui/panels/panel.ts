@@ -28,6 +28,16 @@ export abstract class Panel {
 
   abstract refresh(): void
 
+  /** Shows the panel (makes its container visible). */
+  show(): void {
+    this.container.setVisible(true)
+  }
+
+  /** Hides the panel (hides its container). */
+  hide(): void {
+    this.container.setVisible(false)
+  }
+
   destroy(): void {
     this.container.destroy(true)
   }

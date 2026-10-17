@@ -3,17 +3,16 @@
  * a meta tab with always-on potions plus rotating gear and skill items
  * (decision S10). Stock regenerates on each run completion.
  *
- * Guards (`canBuyItem`/`canSellItem`) are pure; the mutating versions apply
- * the gold change directly to the profile, the way every other core module
- * does (the store wraps them in `mutate()` later — decision M8).
+ * Phase 5: Town-aware stock generation — each town has its own always-stock
+ * items and weighted rotating pools based on item tags.
  */
 
-import { BALANCE, getItem, ITEMS } from '../data'
+import { BALANCE, getItem, ITEMS, TOWNS } from '../data'
 import type { GearInstance, ItemDef, PlayerProfile, ShopStock } from '../types'
-import { shuffle, type Rng } from '../rng/rng'
+import { weightedShuffle, type Rng } from '../rng/rng'
 import { addGear, addItem, createGearInstance, findGearById, removeGearById, removeItem } from '../inventory'
 
-/** Always-on-sale consumables (decision S10). */
+/** Always-on-sale consumables (decision S10) — global fallback. */
 export const ALWAYS_POTIONS: readonly string[] = [
   'health_potion',
   'greater_health_potion',
@@ -49,12 +48,35 @@ function rotatingSkillPool(): ItemDef[] {
   return Object.values(ITEMS).filter((i) => i.type === 'scroll' || i.type === 'tome')
 }
 
-/** Regenerates the shop stock: always potions + rotating gear/skill items. */
-export function generateShopStock(rng: Rng): ShopStock {
-  const gear = shuffle(rng, rotatingGearPool()).slice(0, BALANCE.economy.rotatingGear)
-  const skills = shuffle(rng, rotatingSkillPool()).slice(0, BALANCE.economy.rotatingSkillItems)
+function computeTagWeight(itemTags: readonly string[] | undefined, weightMap: Record<string, number>): number {
+  if (!itemTags || itemTags.length === 0) return 1
+  let weight = 1
+  for (const tag of itemTags) {
+    if (weightMap[tag]) weight *= weightMap[tag]
+  }
+  return weight
+}
+
+/** Regenerates the shop stock for a specific town. */
+export function generateShopStock(rng: Rng, townId: string = 'aldwyn'): ShopStock {
+  const town = TOWNS[townId] ?? TOWNS.aldwyn
+
+  // Weighted sampling for gear
+  const gearPool = rotatingGearPool()
+  const weightedGear = weightedShuffle(rng, gearPool, (item) =>
+    computeTagWeight(item.tags, town.gearTagWeights)
+  )
+  const gear = weightedGear.slice(0, BALANCE.economy.rotatingGear)
+
+  // Weighted sampling for skill items
+  const skillPool = rotatingSkillPool()
+  const weightedSkills = weightedShuffle(rng, skillPool, (item) =>
+    computeTagWeight(item.tags, town.skillItemTagWeights)
+  )
+  const skills = weightedSkills.slice(0, BALANCE.economy.rotatingSkillItems)
+
   return {
-    always: [...ALWAYS_POTIONS, ...ALWAYS_STAT_SHOTS],
+    always: [...town.alwaysStock],
     rotating: {
       gear: gear.map((i) => i.id),
       skills: skills.map((i) => i.id),
@@ -62,9 +84,9 @@ export function generateShopStock(rng: Rng): ShopStock {
   }
 }
 
-/** Regenerates `profile.shop` (call at run completion). */
-export function refreshShopStock(profile: PlayerProfile, rng: Rng): ShopStock {
-  profile.shop = generateShopStock(rng)
+/** Regenerates `profile.shop` for a specific town (call at run completion). */
+export function refreshShopStock(profile: PlayerProfile, rng: Rng, townId: string = 'aldwyn'): ShopStock {
+  profile.shop = generateShopStock(rng, townId)
   return profile.shop
 }
 

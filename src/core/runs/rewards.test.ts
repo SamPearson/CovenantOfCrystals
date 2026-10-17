@@ -85,7 +85,7 @@ describe('bankRunRewards', () => {
   }
 
   function run(drops: string[], goldEarned: number) {
-    const r = generateRun('bank-test', ['c1', 'c2'], 3, 42)
+    const r = generateRun({ profileId: 'bank-test', partyIds: ['c1', 'c2'], length: 3, seed: 42 })
     r.drops = drops
     r.goldEarned = goldEarned
     return r
@@ -164,7 +164,7 @@ describe('bankRunRewards', () => {
 
   it('never banks an item id outside the catalog', () => {
     const p = profile()
-    const r = generateRun('bank-test', ['c1'], 3, 42)
+    const r = generateRun({ profileId: 'bank-test', partyIds: ['c1'], length: 3, seed: 42 })
     r.drops = ['iron_sword']
     r.goldEarned = 10
     r.status = 'won'
