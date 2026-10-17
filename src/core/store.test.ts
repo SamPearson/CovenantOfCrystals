@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest'
+import { describe, expect, it, beforeEach, afterEach } from 'vitest'
 import {
   initStore,
   getSave,
@@ -33,44 +33,23 @@ import { equipGear } from './equip'
 import { addToParty } from './party'
 import { addCharacterToBox } from './boxes'
 import { BOX_COUNT, PARTY_SIZE } from './types'
-import { SAVE_KEY } from './save.service'
 import { createRng } from './rng/rng'
 import type { BattleResult, BattleResultStatus } from './combat/types'
+import { setBackend, MemoryBackend, createDefaultBackend, getBackend } from './storage'
 
-class MemoryStorage implements Storage {
-  private map = new Map<string, string>()
-  get length(): number {
-    return this.map.size
-  }
-  clear(): void {
-    this.map.clear()
-  }
-  getItem(key: string): string | null {
-    return this.map.get(key) ?? null
-  }
-  key(index: number): string | null {
-    return [...this.map.keys()][index] ?? null
-  }
-  removeItem(key: string): void {
-    this.map.delete(key)
-  }
-  setItem(key: string, value: string): void {
-    this.map.set(key, value)
-  }
-}
-
-let memory: MemoryStorage
+let memory: MemoryBackend
 
 beforeEach(() => {
-  memory = new MemoryStorage()
-  vi.stubGlobal('localStorage', memory)
+  memory = new MemoryBackend()
+  setBackend(memory)
   resetStore()
   initStore()
 })
 
 afterEach(() => {
   resetStore()
-  vi.unstubAllGlobals()
+  memory.clear()
+  setBackend(createDefaultBackend())
 })
 
 const rng = createRng(3)
@@ -141,7 +120,9 @@ describe('mutate / subscribe', () => {
     })
 
     expect(notified).toBe(1)
-    expect(memory.getItem(SAVE_KEY)).not.toBeNull()
+    // Check that profile was saved (using the active profile key)
+    const activeId = getBackend().getItem('coc.activeProfile')
+    expect(activeId).not.toBeNull()
 
     resetStore()
     initStore()

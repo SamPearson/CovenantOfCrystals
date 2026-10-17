@@ -1,7 +1,6 @@
 /**
- * Save persistence. Backed by localStorage in the browser; no-op / volatile
- * fallback in server runtimes so the same module can be tested in Node.
- * Stage 2 swaps this for the mock API (docs/roadmap.md).
+ * Save persistence. Backed by the storage abstraction layer.
+ * Supports multiple local profiles, export/import JSON, no passwords.
  */
 
 import { validateSaveFile } from './validation'
@@ -11,50 +10,175 @@ import { BALANCE } from './data/balance'
 import { BUILT_IN_SCRIPTS, BUILT_IN_SCRIPT_IDS } from './data/scripts'
 import { CLASSES } from './data/classes'
 import type { CharacterScript } from './scripting/types'
+import { getBackend, STORAGE_KEYS, type ProfileMeta } from './storage'
 
-export const SAVE_KEY = 'covenant.of.crystals.save'
 export const SCHEMA_VERSION = 4
 
 /** All classes are recruitable from the start (sandbox mode, docs/roadmap.md). */
 export const ALL_CLASSES: string[] = CLASSES.map((c) => c.id)
 
-function storage(): Storage | null {
-  try {
-    if (typeof localStorage !== 'undefined') return localStorage
-  } catch {
-    // access denied (privacy mode, non-browser) — fall through
-  }
-  return null
+/** Build the storage key for a profile. */
+function profileKey(profileId: string): string {
+  return `${STORAGE_KEYS.profilePrefix}${profileId}`
 }
 
-export function loadSave(): SaveFile | null {
-  const s = storage()
-  if (!s) return null
-  const raw = s.getItem(SAVE_KEY)
+/** List all saved profiles (metadata only, no full load). */
+export function listProfiles(): ProfileMeta[] {
+  const backend = getBackend()
+  const prefix = STORAGE_KEYS.profilePrefix
+  const metas: ProfileMeta[] = []
+
+  for (const key of backend.keys()) {
+    if (!key.startsWith(prefix)) continue
+    const raw = backend.getItem(key)
+    if (!raw) continue
+    try {
+      const save: SaveFile = JSON.parse(raw)
+      const p = save.profile
+      metas.push({
+        profileId: p.profileId,
+        displayName: p.displayName,
+        createdAt: p.createdAt,
+        lastPlayed: save.savedAt,
+        stats: p.stats,
+        sizeBytes: raw.length,
+      })
+    } catch {
+      // Skip corrupt entries
+    }
+  }
+
+  // Sort by last played (most recent first)
+  metas.sort((a, b) => b.lastPlayed - a.lastPlayed)
+  return metas
+}
+
+/** Get the active profile ID. */
+export function getActiveProfileId(): string | null {
+  return getBackend().getItem(STORAGE_KEYS.activeProfileKey)
+}
+
+/** Set the active profile ID. */
+export function setActiveProfileId(profileId: string): void {
+  getBackend().setItem(STORAGE_KEYS.activeProfileKey, profileId)
+}
+
+/** Load a specific profile by ID. */
+export function loadProfile(profileId: string): SaveFile | null {
+  const backend = getBackend()
+  const raw = backend.getItem(profileKey(profileId))
   if (!raw) return null
   try {
     const save = validateSaveFile(JSON.parse(raw))
     return migrateSave(save)
   } catch {
-    // Corrupt save. We could surface it to the player in Phase 2; for now,
-    // treat as no save so the player can restart.
     return null
   }
 }
 
-export function writeSave(save: SaveFile): void {
-  const s = storage()
-  if (!s) return
+/** Load the active profile (or null if none). */
+export function loadActiveProfile(): SaveFile | null {
+  const activeId = getActiveProfileId()
+  if (!activeId) return null
+  return loadProfile(activeId)
+}
+
+/** Create a new profile and set it as active. */
+export function createProfile(displayName?: string): SaveFile {
+  const save = createNewSave(undefined, displayName)
+  const backend = getBackend()
+  backend.setItem(profileKey(save.profile.profileId), JSON.stringify(save))
+  setActiveProfileId(save.profile.profileId)
+  return save
+}
+
+/** Save a profile (write to storage). */
+export function saveProfile(save: SaveFile): void {
+  const backend = getBackend()
   save.savedAt = Date.now()
-  s.setItem(SAVE_KEY, JSON.stringify(save))
+  backend.setItem(profileKey(save.profile.profileId), JSON.stringify(save))
+  setActiveProfileId(save.profile.profileId)
 }
 
-export function clearSave(): void {
-  const s = storage()
-  if (!s) return
-  s.removeItem(SAVE_KEY)
+/** Delete a profile. */
+export function deleteProfile(profileId: string): boolean {
+  const backend = getBackend()
+  const key = profileKey(profileId)
+  const existed = backend.getItem(key) !== null
+  if (existed) {
+    backend.removeItem(key)
+    // If this was the active profile, clear active
+    if (getActiveProfileId() === profileId) {
+      const remaining = listProfiles()
+      if (remaining.length > 0) {
+        setActiveProfileId(remaining[0].profileId)
+      } else {
+        backend.removeItem(STORAGE_KEYS.activeProfileKey)
+      }
+    }
+  }
+  return existed
 }
 
+/** Export a profile as JSON string. */
+export function exportProfile(profileId: string): string | null {
+  const save = loadProfile(profileId)
+  if (!save) return null
+  return JSON.stringify(save, null, 2)
+}
+
+/** Import a profile from JSON string. Returns the new profile ID. */
+export function importProfile(json: string, newDisplayName?: string): string | null {
+  try {
+    const save = validateSaveFile(JSON.parse(json))
+    // Generate new ID to avoid conflicts
+    save.profile.profileId = uuid()
+    save.profile.displayName = newDisplayName ?? `${save.profile.displayName} (imported)`
+    save.profile.createdAt = Date.now()
+    save.savedAt = Date.now()
+    const backend = getBackend()
+    backend.setItem(profileKey(save.profile.profileId), JSON.stringify(save))
+    setActiveProfileId(save.profile.profileId)
+    return save.profile.profileId
+  } catch {
+    return null
+  }
+}
+
+/** Clear ALL profiles and settings (nuclear option). */
+export function clearAllProfiles(): void {
+  const backend = getBackend()
+  for (const key of backend.keys()) {
+    if (key.startsWith(STORAGE_KEYS.profilePrefix) || key === STORAGE_KEYS.activeProfileKey) {
+      backend.removeItem(key)
+    }
+  }
+}
+
+/** Rename a profile. */
+export function renameProfile(profileId: string, newName: string): boolean {
+  const save = loadProfile(profileId)
+  if (!save) return false
+  save.profile.displayName = newName
+  saveProfile(save)
+  return true
+}
+
+/** Duplicate a profile. */
+export function duplicateProfile(profileId: string, newName?: string): string | null {
+  const save = loadProfile(profileId)
+  if (!save) return null
+  save.profile.profileId = uuid()
+  save.profile.displayName = newName ?? `${save.profile.displayName} (copy)`
+  save.profile.createdAt = Date.now()
+  save.savedAt = Date.now()
+  const backend = getBackend()
+  backend.setItem(profileKey(save.profile.profileId), JSON.stringify(save))
+  setActiveProfileId(save.profile.profileId)
+  return save.profile.profileId
+}
+
+/** Create a new save object (internal helper, also exported for testing). */
 export function createNewSave(profileId?: string, displayName?: string): SaveFile {
   return {
     schemaVersion: SCHEMA_VERSION,
