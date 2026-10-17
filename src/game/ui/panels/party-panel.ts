@@ -53,7 +53,31 @@ export class PartyPanel extends Panel {
         const cls = getClass(c.classId)
         const cx = x + cardW / 2
         makePortraitSlot(this.scene, content, cx - PORTRAIT_SLOT / 2, cardsY + 8, cls.element, cls.name[0])
-        uiText(this.scene, cx, cardsY + 72, truncate(c.name, 12), { size: 'md' }, content).setOrigin(0.5, 0)
+
+        const cell = this.scene.add.rectangle(
+          x + cardW / 2,
+          cardsY + cardH / 2,
+          cardW,
+          cardH,
+          0x000000,
+          0,
+        )
+        cell.setInteractive({ useHandCursor: true })
+        attachTooltip(this.scene, cell, () => characterTooltip(charId))
+        cell.on('pointerdown', () => {
+          this.selected = this.selected === charId ? null : charId
+          this.refresh()
+        })
+        content.add(cell)
+
+        // Name text added AFTER cell so it renders on top and receives clicks
+        const nameText = uiText(this.scene, cx, cardsY + 72, truncate(c.name, 12), { size: 'md' }, content).setOrigin(0.5, 0)
+        nameText.setInteractive({ useHandCursor: true })
+        nameText.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+          pointer.event?.stopPropagation()
+          this.editCharacterName(charId)
+        })
+
         uiText(
           this.scene,
           cx,
@@ -73,21 +97,6 @@ export class PartyPanel extends Panel {
           },
           content,
         ).setOrigin(0.5, 0)
-        const cell = this.scene.add.rectangle(
-          x + cardW / 2,
-          cardsY + cardH / 2,
-          cardW,
-          cardH,
-          0x000000,
-          0,
-        )
-        cell.setInteractive({ useHandCursor: true })
-        attachTooltip(this.scene, cell, () => characterTooltip(charId))
-        cell.on('pointerdown', () => {
-          this.selected = this.selected === charId ? null : charId
-          this.refresh()
-        })
-        content.add(cell)
       } else {
         uiText(
           this.scene,
@@ -145,5 +154,39 @@ export class PartyPanel extends Panel {
         content,
       )
     }
+  }
+
+  private editCharacterName(charId: string): void {
+    const profile = getProfile()
+    const ch = profile.characters[charId]
+    if (!ch) return
+
+    const input = document.createElement('input')
+    input.type = 'text'
+    input.value = ch.name
+    input.maxLength = 16
+    input.style.cssText = `
+      position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+      padding: 8px 12px; font-size: 14px; border: 2px solid #c9b896;
+      background: #1a1612; color: #e8dfc8; border-radius: 4px; z-index: 10000;
+    `
+    document.body.appendChild(input)
+    input.focus()
+    input.select()
+
+    const submit = () => {
+      const name = input.value.trim()
+      input.remove()
+      if (name && name !== ch.name) {
+        mutate((p) => { p.characters[charId].name = name })
+        this.refresh()
+      }
+    }
+
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') submit()
+      if (e.key === 'Escape') { input.remove() }
+    })
+    input.addEventListener('blur', submit)
   }
 }
