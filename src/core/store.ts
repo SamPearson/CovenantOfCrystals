@@ -7,7 +7,14 @@
 
 import type { SaveFile, PlayerProfile, ActiveRun, RunResult, PlayerAiPresetId } from './types'
 import type { BattleResult } from './combat/types'
-import { loadSave, writeSave, createNewSave, AUTOBATTLE_DEFAULTS } from './save.service'
+import {
+  loadActiveProfile,
+  saveProfile,
+  createProfile,
+  AUTOBATTLE_DEFAULTS,
+  loadProfile,
+  setActiveProfileId,
+} from './save.service'
 import { ensureBoxCount } from './boxes'
 import { seedStarterRoster } from './starter'
 import { generateRun } from './runs/run-gen'
@@ -41,14 +48,17 @@ export interface ItemUseResult {
 }
 
 export function initStore(): SaveFile {
-  const existing = loadSave()
+  const existing = loadActiveProfile()
   if (existing) {
     current = existing
+    // Ensure boxes exist for older profiles (migration)
+    ensureBoxCount(current.profile)
   } else {
-    current = createNewSave()
+    // No active profile — create a default one
+    current = createProfile()
     ensureBoxCount(current.profile)
     seedStarterRoster(current.profile)
-    writeSave(current)
+    saveProfile(current)
   }
   seedMetaStock()
   return current
@@ -69,7 +79,7 @@ function seedMetaStock(): void {
   const rng = createRng(Date.now() + profile.stats.totalRuns + 1)
   if (stockEmpty) refreshShopStock(profile, rng)
   if (offersEmpty) refreshRecruitment(profile, rng)
-  writeSave(current)
+  saveProfile(current)
 }
 
 export function getSave(): SaveFile {
@@ -88,7 +98,7 @@ export function subscribe(listener: Listener): () => void {
 /** Applies `fn` to the profile, persists, and notifies subscribers. */
 export function mutate(fn: (profile: PlayerProfile) => void): void {
   fn(current.profile)
-  writeSave(current)
+  saveProfile(current)
   notify()
 }
 
@@ -114,7 +124,7 @@ export function startRun(partyIds: string[], length: number, seed: number, opts?
     run.loops = 0
   }
   current.activeRun = run
-  writeSave(current)
+  saveProfile(current)
   notify()
   return run
 }
@@ -131,7 +141,7 @@ export function resolveNode(battleResult: BattleResult): RunResult | null {
   if (result) {
     onRunEnd(profileStats(result.status))
   }
-  writeSave(current)
+  saveProfile(current)
   notify()
   return result
 }
@@ -141,7 +151,7 @@ export function resolveRest(): void {
   const run = current.activeRun
   if (!run) throw new Error('No active run')
   resolveRestNode(run)
-  writeSave(current)
+  saveProfile(current)
   notify()
 }
 
@@ -159,7 +169,7 @@ export function abandonRun(): RunResult {
   )
   if (!result) throw new Error('Failed to resolve abandoned run')
   onRunEnd(profileStats(result.status))
-  writeSave(current)
+  saveProfile(current)
   notify()
   return result
 }
@@ -173,7 +183,7 @@ export function setAutobattle(characterId: string, presetId: PlayerAiPresetId | 
   const character = current.profile.characters[characterId]
   if (!character) throw new Error(`Character not found: ${characterId}`)
   character.autobattle = presetId
-  writeSave(current)
+  saveProfile(current)
   notify()
 }
 
@@ -388,7 +398,7 @@ export function applyStatShot(characterId: string, itemId: string, qty = 1): App
     coreApplyStatShot(character, item)
   }
   removeItem(current.profile, itemId, count)
-  writeSave(current)
+  saveProfile(current)
   notify()
   return { ok: true }
 }
@@ -410,7 +420,7 @@ export function applyTome(characterId: string, itemId: string): ApplyItemResult 
     return { ok: false, error: `${character.name} already knows ${getSkill(item.grantsSkill).name} (tomes are single-use)`, alreadyKnown: true }
   }
   removeItem(current.profile, itemId, 1)
-  writeSave(current)
+  saveProfile(current)
   notify()
   return { ok: true }
 }
@@ -478,4 +488,22 @@ export function unequipItem(characterId: string, slot: 'weapon' | 'armor'): Item
 export function resetStore(): void {
   current = undefined as unknown as SaveFile
   listeners = new Set()
+}
+
+// ---------------------------------------------------------------------------
+// Profile management (Phase 5 - local profiles)
+// ---------------------------------------------------------------------------
+
+// Re-export profile management from save.service (available via @core)
+// export { listProfiles, getActiveProfileId, setActiveProfileId, deleteProfile, exportProfile, importProfile, renameProfile, duplicateProfile, createProfile } from './save.service'
+
+/** Switch to a different profile (reloads store). */
+export function switchProfile(profileId: string): SaveFile {
+  const save = loadProfile(profileId)
+  if (!save) throw new Error(`Profile not found: ${profileId}`)
+  current = save
+  setActiveProfileId(profileId)
+  seedMetaStock()
+  notify()
+  return current
 }

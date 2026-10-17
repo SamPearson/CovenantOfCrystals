@@ -13,6 +13,7 @@ import { ApplyPanel } from '../ui/panels/apply-panel'
 import { ShopPanel } from '../ui/panels/shop-panel'
 import { RecruitmentPanel } from '../ui/panels/recruitment-panel'
 import { AutomationPanel } from '../ui/panels/automation-panel'
+import { ProfilePanel } from '../ui/panels/profile-panel'
 import type { Panel } from '../ui/panels/panel'
 import { initStore, getProfile, subscribe } from '../../core/store'
 import {
@@ -22,9 +23,9 @@ import {
   toggleFullscreen,
 } from '../../core/fullscreen'
 
-type PanelId = 'boxes' | 'party' | 'equip' | 'inventory' | 'apply' | 'shop' | 'recruit' | 'automation' | 'theme'
+type PanelId = 'boxes' | 'party' | 'equip' | 'inventory' | 'apply' | 'shop' | 'recruit' | 'automation' | 'profile' | 'theme'
 
-const TAB_IDS: PanelId[] = ['boxes', 'party', 'equip', 'inventory', 'apply', 'shop', 'recruit', 'automation', 'theme']
+const TAB_IDS: PanelId[] = ['boxes', 'party', 'equip', 'inventory', 'apply', 'shop', 'recruit', 'automation', 'profile', 'theme']
 const TAB_LABELS: Record<PanelId, string> = {
   boxes: 'Boxes',
   party: 'Party',
@@ -34,6 +35,7 @@ const TAB_LABELS: Record<PanelId, string> = {
   shop: 'Shop',
   recruit: 'Recruit',
   automation: 'Automation',
+  profile: 'Profiles',
   theme: 'Theme',
 }
 
@@ -160,6 +162,11 @@ export class MetaScene extends Phaser.Scene {
       shop: new ShopPanel(this, contentRect),
       recruit: new RecruitmentPanel(this, contentRect),
       automation: new AutomationPanel(this, contentRect),
+      profile: new ProfilePanel({
+        ...contentRect,
+        scene: this,
+        onProfileChange: () => this.updateHeader(),
+      }),
     }
 
     this.unsubscribe = subscribe(() => {
