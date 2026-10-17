@@ -8,8 +8,11 @@
  * live CTB queue; no derived state is stored beyond it.
  */
 
-import type { StatBlock, StatKey, Element, AiProfileId } from '../types'
+import type { StatBlock, StatKey, Element, AiProfileId, BattleLogEntry } from '../types'
 import type { CharacterScript, EventKind } from '../scripting/types'
+import type { BattleLogger } from './logger'
+
+export type { BattleLogEntry }
 
 export type CombatantSide = 'player' | 'enemy'
 
@@ -121,14 +124,6 @@ export interface BattleActor {
   aiProfile?: AiProfileId
 }
 
-export interface BattleLogEntry {
-  id: number
-  /** Global resolved-turn counter at the event. */
-  turn: number
-  actorId?: string
-  text: string
-}
-
 export interface TurnOutcome {
   actorId: string
   /** Null when the turn resolved without an action (CC skip, KO tick). */
@@ -157,6 +152,7 @@ export interface BattleState {
    */
   reactionResolver?: (characterId: string) => CharacterScript | undefined
   log: BattleLogEntry[]
+  logger: BattleLogger
   status: BattleStatus
   over: boolean
 }
@@ -175,6 +171,8 @@ export interface BattleResult {
   koIds: string[]
   /** Surviving party character IDs. */
   survivors: string[]
+  /** HP remaining for each surviving party member (for infinite mode). */
+  survivorHp?: Record<string, number>
   xpAwarded: Record<string, number>
   drops: Loot[]
   log: BattleLogEntry[]

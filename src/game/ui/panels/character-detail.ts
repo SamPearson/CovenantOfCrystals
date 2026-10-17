@@ -1,9 +1,14 @@
 /**
  * Shared character detail view used by the Boxes and Party panels. Renders
- * into a scrollable region so long content (stats, skills) never overflows
- * the panel. Action buttons are pinned to the bottom of the region.
+ * into two distinct zones:
+ *   1. Fixed header — name, badges, septagon (non-scrolling)
+ *   2. Scrollable body — gear, stats, skills, autobattle selector
+ *
+ * The septagon is drawn directly in the scene (not inside the scroll region),
+ * so it is never clipped by the scroll texture.
  */
 
+import Phaser from 'phaser'
 import { THEME } from '../theme'
 import { uiText, makeButton, makeBadge, makeScrollRegion } from '../widgets'
 import { showTooltip, hideTooltip } from '../tooltip'
@@ -18,6 +23,7 @@ import { getProfile, getScripts, assignScript } from '../../../core/store'
 import { getClass, getItem, getSkill, derivedStats, getSkillPool } from '../../../core'
 import { describeItem, describeSkill } from '../../../core/tooltips'
 import type { TooltipLine } from '../../../core/tooltips'
+import { drawSeptagon } from '../septagon'
 
 interface HoverBand {
   top: number
@@ -52,18 +58,28 @@ export function buildCharacterDetail(
   const textMuted = THEME.colors.textMuted
   const heading = THEME.colors.accentBlue
 
-  const region = makeScrollRegion(scene, parent, x, y, w, h, {
-    fillColor: THEME.colors.face,
-    strokeColor: THEME.colors.border,
-  })
-  const view = region.content
+  // ── Layout ──────────────────────────────────────────────────────────────
+  // The detail panel is split into two vertical zones:
+  //   FIXED header zone (non-scrolling, draws septagon + character identity)
+  //   SCROLL body zone (scrollable gear, stats, skills, autobattle)
+  //
+  // The septagon is drawn at scene-level coordinates (parent + header offset)
+  // so the scroll region's texture never clips it.
 
-  let yy = pad
-  const hoverBands: HoverBand[] = []
+  const fixedHeaderH = 180 // pixels reserved for fixed header
+  const scrollTopY = y + fixedHeaderH // Y where scroll region starts (in parent coords)
 
-  const name = uiText(scene, pad, yy, c.name, { size: 'lg' }, view)
-  yy += name.height + 8
+  // ── Fixed header zone ──────────────────────────────────────────────────
+  // Drawn directly into the parent (scene-relative via parent coords).
+  // This sits at (x, y) within the detail panel.
 
+  // Name
+  const nameY = y + pad
+  const nameText = uiText(scene, x + pad, nameY, c.name, { size: 'lg' }, parent)
+  const nameH = nameText.height
+  let scrollHeadY = nameY + nameH + 12
+
+  // Badges row
   const badges = [
     { label: roleLabel(cls.role), color: textMuted },
     { label: elementLabel(cls.element), color: textMuted },
@@ -72,126 +88,149 @@ export function buildCharacterDetail(
       color: c.durability.kind === 'expires' ? THEME.colors.warn : THEME.colors.good,
     },
   ]
-  let bx = pad
+  let bx = x + pad
   for (const b of badges) {
-    const badge = makeBadge(scene, bx, yy, b.label, b.color, {}, view)
+    const badge = makeBadge(scene, bx, scrollHeadY, b.label, b.color, {}, parent)
     bx += badge.width + 6
   }
-  yy += 26
+  scrollHeadY += 26
 
-  const meta = uiText(
+  // Meta line
+  const metaText = uiText(
     scene,
-    pad,
-    yy,
+    x + pad,
+    scrollHeadY,
     `${cls.name} · Lv ${c.level} · XP ${c.xp}`,
     { size: 'sm', color: textMuted },
-    view,
+    parent,
   )
-  yy += meta.height + 12
+  scrollHeadY += metaText.height + 8
 
-  uiText(scene, pad, yy, 'GEAR', { size: 'xs', color: heading }, view)
-  yy += 16
+  // Septagon — drawn at scene-level Y so the scroll texture won't cover it.
+  // Positioned in the right half of the fixed header zone.
+  const septagonRadius = Math.min(80, (w - pad * 2) / 2 - 20)
+  const septX = x + pad + septagonRadius + 10
+  const septY = scrollHeadY - 10
+  drawSeptagon(scene, {
+    x: septX,
+    y: septY,
+    radius: septagonRadius,
+    stats,
+    classId: c.classId,
+    parent,
+  })
+
+  // ── Scrollable body ───────────────────────────────────────────────────
+  const scrollRegion = makeScrollRegion(scene, parent, x, scrollTopY, w, h - fixedHeaderH, {
+    fillColor: THEME.colors.face,
+    strokeColor: THEME.colors.border,
+  })
+  const view = scrollRegion.content
+
+  let scY = pad
+
+  const hoverBands: HoverBand[] = []
+
+  // GEAR
+  uiText(scene, pad, scY, 'GEAR', { size: 'xs', color: heading }, view)
+  scY += 16
   for (const slot of ['weapon', 'armor'] as const) {
     const g = c.gear[slot]
     if (g) {
       const item = getItem(g.itemId)
       const color = THEME.rarity[item.rarity]
-      uiText(scene, pad, yy, `${slot.toUpperCase()}  `, { size: 'sm', color: textMuted }, view)
-      const itemText = uiText(scene, pad + 70, yy, item.name, { size: 'sm', color }, view)
+      uiText(scene, pad, scY, `${slot.toUpperCase()}  `, { size: 'sm', color: textMuted }, view)
+      const itemText = uiText(scene, pad + 70, scY, item.name, { size: 'sm', color }, view)
       uiText(
         scene,
         pad + 70 + itemText.width + 8,
-        yy,
+        scY,
         `(${durabilityLabel(g.durability)})`,
         { size: 'xs', color: textMuted },
         view,
       )
       hoverBands.push({
-        top: yy,
-        bottom: yy + 20,
+        top: scY,
+        bottom: scY + 20,
         payload: () => describeItem(item),
       })
     } else {
-      uiText(scene, pad, yy, `${slot.toUpperCase()}  —`, { size: 'sm', color: textMuted }, view)
+      uiText(scene, pad, scY, `${slot.toUpperCase()}  —`, { size: 'sm', color: textMuted }, view)
     }
-    yy += 20
+    scY += 20
   }
-  yy += 8
+  scY += 8
 
-  uiText(scene, pad, yy, 'STATS', { size: 'xs', color: heading }, view)
-  yy += 16
+  // STATS
+  uiText(scene, pad, scY, 'STATS', { size: 'xs', color: heading }, view)
+  scY += 16
   for (const s of statList(stats)) {
-    uiText(scene, pad, yy, statLabel(s.key), { size: 'sm', color: textMuted }, view)
-    uiText(scene, w - pad, yy, String(s.value), { size: 'sm' }, view).setOrigin(1, 0)
-    yy += 19
+    uiText(scene, pad, scY, statLabel(s.key), { size: 'sm', color: textMuted }, view)
+    uiText(scene, w - pad, scY, String(s.value), { size: 'sm' }, view).setOrigin(1, 0)
+    scY += 19
   }
-  yy += 8
+  scY += 8
 
-  uiText(scene, pad, yy, 'SKILLS', { size: 'xs', color: heading }, view)
-  yy += 16
+  // SKILLS
+  uiText(scene, pad, scY, 'SKILLS', { size: 'xs', color: heading }, view)
+  scY += 16
   const pool = getSkillPool(c)
   if (pool.length === 0) {
-    const none = uiText(scene, pad, yy, '—', { size: 'xs', color: textMuted }, view)
-    yy += none.height + 8
+    const none = uiText(scene, pad, scY, '—', { size: 'xs', color: textMuted }, view)
+    scY += none.height + 8
   } else {
     for (const entry of pool) {
       const sourceTag =
         entry.source === 'native' ? 'native' : entry.source === 'learned' ? 'learned' : 'gear'
-      uiText(scene, pad, yy, getSkill(entry.skillId).name, { size: 'xs', color: textMuted }, view)
+      uiText(scene, pad, scY, getSkill(entry.skillId).name, { size: 'xs', color: textMuted }, view)
       const tag = makeBadge(
         scene,
         pad + 110,
-        yy - 2,
+        scY - 2,
         sourceTag,
-          entry.source === 'gear'
-            ? THEME.colors.warn
-            : entry.source === 'learned'
-              ? THEME.colors.good
-              : THEME.colors.textDim,
+        entry.source === 'gear'
+          ? THEME.colors.warn
+          : entry.source === 'learned'
+            ? THEME.colors.good
+            : THEME.colors.textDim,
         {},
         view,
       )
       const rowH = Math.max(18, tag.height + 6)
       hoverBands.push({
-        top: yy,
-        bottom: yy + rowH,
+        top: scY,
+        bottom: scY + rowH,
         payload: () => describeSkill(getSkill(entry.skillId), { stats }, {}),
       })
-      yy += rowH
+      scY += rowH
     }
-    yy += 4
+    scY += 4
   }
 
   uiText(
     scene,
     pad,
-    yy,
+    scY,
     `Runs ${c.earned.runs} · Wins ${c.earned.wins}`,
     { size: 'xs', color: textMuted },
     view,
   )
-  yy += 12
+  scY += 12
 
   uiText(
     scene,
     pad,
-    yy,
+    scY,
     'AUTO BATTLE: how this hero fights. Manual = choose every turn.',
     { size: 'xs', color: textMuted, wordWrap: w - pad * 2 },
     view,
   )
-  yy += 16
+  scY += 16
 
-  // The selector must live in the LIVE `region.container` layer — `content`
-  // (view) is rendered into a texture and is non-interactive, so any buttons
-  // placed there are not clickable. Pinned just above the footer so it stays put
-  // while the stats/skills content scrolls.
-  const abY = h - 86
-  uiText(scene, pad, abY, 'AUTO BATTLE', { size: 'xs', color: heading }, region.container)
+  // AUTO BATTLE selector — pinned in scroll region's live layer
+  const abY = (h - fixedHeaderH) - 86
+  uiText(scene, pad, abY, 'AUTO BATTLE', { size: 'xs', color: heading }, scrollRegion.container)
 
-  // Library-backed script selector: Manual + every script in the library.
-  // A cycle (< / >) keeps the pinned row compact no matter how many scripts
-  // exist. The displayed name resolves via the profile library.
   const scripts = getScripts()
   const options: (string | undefined)[] = [undefined, ...scripts.map((s) => s.id)]
   const curScript = c.scriptId !== undefined && scripts.some((s) => s.id === c.scriptId) ? c.scriptId : undefined
@@ -199,18 +238,18 @@ export function buildCharacterDetail(
   const scriptName = uiText(scene, pad + 26 + 6, abY + 16, label, {
     size: 'sm',
     color: curScript === undefined ? THEME.colors.textMuted : THEME.colors.text,
-  }, region.container)
+  }, scrollRegion.container)
 
   const cycle = (delta: number): void => {
     const idx = options.indexOf(curScript)
     const next = options[(idx + delta + options.length) % options.length]
     assignScript(charId, next)
   }
-  makeButton(scene, pad, abY + 10, '‹', () => cycle(-1), { width: 26, height: 28, fontSize: 'sm' }, region.container)
-  makeButton(scene, pad + 26 + 6 + scriptName.width + 6, abY + 10, '›', () => cycle(1), { width: 26, height: 28, fontSize: 'sm' }, region.container)
+  makeButton(scene, pad, abY + 10, '‹', () => cycle(-1), { width: 26, height: 28, fontSize: 'sm' }, scrollRegion.container)
+  makeButton(scene, pad + 26 + 6 + scriptName.width + 6, abY + 10, '›', () => cycle(1), { width: 26, height: 28, fontSize: 'sm' }, scrollRegion.container)
 
-  // Footer: action buttons pinned to the bottom of the region (fixed layer).
-  const ay = h - 44
+  // Footer action buttons
+  const ay = (h - fixedHeaderH) - 44
   let ax = pad
   for (const action of actions) {
     const button = makeButton(
@@ -220,27 +259,23 @@ export function buildCharacterDetail(
       action.label,
       action.onClick,
       { width: 112, height: 32, color: action.color, fontSize: 'sm' },
-      region.container,
+      scrollRegion.container,
     )
     if (action.disabled) button.setDisabled(true)
     ax += 120
   }
 
-  // Reserve room below the content so the last line can scroll clear of the
-  // pinned AUTO BATTLE selector and footer.
-  region.setContentHeight(yy + 92)
+  scrollRegion.setContentHeight(scY + 92)
 
-  // Hover tooltips for the baked content: the scroll texture never sees pointer
-  // events, so listen on the live `layer` and map the pointer back into content
-  // coordinates (`worldToContentY`) to hit-test against the gear/skill bands.
+  // Hover tooltips for baked scroll content
   let activeBand: HoverBand | null = null
   let hoverTimer: Phaser.Time.TimerEvent | null = null
 
   const bandAt = (contentY: number): HoverBand | null =>
     hoverBands.find((b) => contentY >= b.top && contentY < b.bottom) ?? null
 
-  region.layer.on('pointermove', (pointer: Phaser.Input.Pointer) => {
-    const contentY = region.worldToContentY(pointer.worldY)
+  scrollRegion.layer.on('pointermove', (pointer: Phaser.Input.Pointer) => {
+    const contentY = scrollRegion.worldToContentY(pointer.worldY)
     const band = bandAt(contentY)
     if (band === activeBand) return
     activeBand = band
@@ -257,7 +292,7 @@ export function buildCharacterDetail(
     })
   })
 
-  region.layer.on('pointerout', () => {
+  scrollRegion.layer.on('pointerout', () => {
     if (hoverTimer) hoverTimer.remove(false)
     hoverTimer = null
     activeBand = null

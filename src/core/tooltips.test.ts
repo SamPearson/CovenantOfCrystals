@@ -10,7 +10,7 @@ import {
 import type { ItemDef, SkillDef, StatBlock, StatusEffect } from './types'
 
 /** Owner stats fixture: clean ratios so derived numbers are integers. */
-const STATS: StatBlock = { hp: 120, atk: 20, def: 10, mag: 40, res: 10, spd: 12 }
+const STATS: StatBlock = { hp: 120, mp: 30, atk: 20, def: 10, mag: 40, res: 10, spd: 12 }
 
 function kinds(lines: TooltipLine[]): string[] {
   return lines.map((l) => l.kind)

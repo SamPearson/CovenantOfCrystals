@@ -34,6 +34,7 @@ function scaleStats(stats: StatBlock, scale: number): StatBlock {
   const s = (v: number) => Math.max(1, Math.round(v * scale))
   return {
     hp: s(stats.hp),
+    mp: s(stats.mp),
     atk: s(stats.atk),
     def: s(stats.def),
     mag: s(stats.mag),

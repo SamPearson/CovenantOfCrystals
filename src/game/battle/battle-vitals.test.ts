@@ -10,7 +10,7 @@ function makeActor(id: string, hp: number, mp: number): BattleActor {
     sourceId: id,
     side: 'enemy',
     name: id,
-    stats: { hp: 100, atk: 10, def: 5, mag: 5, res: 5, spd: 5 },
+    stats: { hp: 100, mp: 20, atk: 10, def: 5, mag: 5, res: 5, spd: 5 },
     hp,
     mp,
     statuses: [],
@@ -21,6 +21,12 @@ function makeActor(id: string, hp: number, mp: number): BattleActor {
 function makeBattle(actors: BattleActor[]): BattleState {
   const record: Record<string, BattleActor> = {}
   for (const a of actors) record[a.id] = a
+  const logger: BattleState['logger'] = {
+    entries: [],
+    log() {},
+    getEntries() { return this.entries },
+    clear() { this.entries.length = 0 },
+  }
   return {
     seed: 1,
     actors: record,
@@ -30,6 +36,7 @@ function makeBattle(actors: BattleActor[]): BattleState {
     pendingEvents: [],
     reactionQueue: [],
     log: [],
+    logger,
     status: 'ongoing',
     over: false,
   }

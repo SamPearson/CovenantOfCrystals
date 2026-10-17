@@ -5,7 +5,7 @@
  * three run-end states (victory / full wipe / abandon). Pure + Phaser-free.
  */
 
-import type { BattleResult } from '../combat/types'
+import type { BattleResult, BattleLogEntry } from '../combat/types'
 import { createRng, hashString, type Rng } from '../rng/rng'
 import type { ActiveRun, PlayerProfile, RunResult } from '../types'
 import { addGear } from '../inventory'
@@ -21,12 +21,26 @@ function rewardRng(run: ActiveRun): Rng {
  * Applies permadeath for one KO'd character (combat.md §6):
  * removed from the party immediately, equipped gear returns to inventory
  * (P3 all-permanent ⇒ always returns), and the roster slot is cleared.
+ *
+ * In infinite mode, the character instead has HP clamped to 0 on the
+ * Character object and stays in the party so the next battle starts them at
+ * HP 0.
  */
 function applyPermadeath(
   run: ActiveRun,
   profile: PlayerProfile,
   characterId: string,
 ): void {
+  if (run.infinite) {
+    // In infinite mode: keep character in the party but persist HP=0 (and
+    // restore MP so they can be healed).
+    const char = profile.characters[characterId]
+    if (char) {
+      char.hp = 0
+      char.mp = (char.mp ?? 0) // restore MP on KO
+    }
+    return
+  }
   const char = profile.characters[characterId]
   if (!char) return
   if (char.gear.weapon) addGear(profile, char.gear.weapon)
@@ -38,9 +52,28 @@ function applyPermadeath(
   run.party = run.party.filter((id) => id !== characterId)
 }
 
-/** Advances to the next node (which may be a rest node the player resolves). */
+/** Advances to the next node (which may be a rest node the player resolves).
+ *
+ * In infinite mode, wrapping past the end loops back to the start.
+ * In normal mode the index may run past the array end (the caller
+ * checks node type / status to decide whether the run has ended).
+ */
 function advanceNode(run: ActiveRun): void {
   run.currentNodeIndex += 1
+  if (run.infinite && run.currentNodeIndex >= run.nodes.length) {
+    run.currentNodeIndex = 0
+    run.loops = (run.loops ?? 0) + 1
+  }
+}
+
+/**
+ * Resets the node map back to index 0 for infinite mode looping.
+ * In infinite runs the same node map is replayed; the run continues
+ * seamlessly after a full party wipe (characters stay alive at HP 0).
+ */
+function loopRun(run: ActiveRun): void {
+  run.currentNodeIndex = 0
+  run.loops = (run.loops ?? 0) + 1
 }
 
 function buildResult(
@@ -49,6 +82,7 @@ function buildResult(
   survivors: string[],
   koIds: string[],
   xpGained: Record<string, number>,
+  battleLog?: BattleLogEntry[],
 ): RunResult {
   const banking = bankRunRewards(run, profile)
   const status = run.status === 'won' ? 'won' : run.status === 'lost' ? 'lost' : 'abandoned'
@@ -60,6 +94,7 @@ function buildResult(
     itemsBanked: banking.itemsBanked,
     gearBanked: banking.gearBanked,
     xpGained,
+    battleLog,
   }
 }
 
@@ -67,6 +102,10 @@ function buildResult(
  * Resolves a finished battle against the run. Earnings accumulate on the run
  * (gold/drops); on a run-ending result they are banked and a `RunResult`
  * returned, otherwise the function returns null and the run continues.
+ *
+ * Infinite mode (run.infinite): characters stay alive at HP 0 on defeat, the
+ * party never fully wipes, XP/gold continue to accumulate, and when the
+ * node map is exhausted the run loops back to the start.
  */
 export function resolveBattleResult(
   run: ActiveRun,
@@ -74,12 +113,24 @@ export function resolveBattleResult(
   profile: PlayerProfile,
 ): RunResult | null {
   // 1. Permadeath: KO'd characters die immediately (combat.md §6).
+  //    In infinite mode, KO'd characters stay alive (at HP 0).
   for (const id of battleResult.koIds) {
     applyPermadeath(run, profile, id)
   }
 
   const node = run.nodes[run.currentNodeIndex]
   const survivors = battleResult.survivors
+
+  // In infinite mode, persist HP/MP for survivors back to their Character.
+  if (run.infinite && battleResult.survivorHp) {
+    for (const [id, hp] of Object.entries(battleResult.survivorHp)) {
+      const char = profile.characters[id]
+      if (char) {
+        char.hp = hp
+        char.mp = Math.min(hp > 0 ? (char.mp ?? 0) : 0, char.mp ?? 0)
+      }
+    }
+  }
 
   // 2. Victory: roll rewards, award XP to survivors.
   if (battleResult.status === 'won') {
@@ -99,22 +150,26 @@ export function resolveBattleResult(
     }
     if (node.type === 'boss') {
       run.status = 'won'
-      return buildResult(run, profile, survivors, battleResult.koIds, reward.xp)
+      return buildResult(run, profile, survivors, battleResult.koIds, reward.xp, battleResult.log)
     }
     advanceNode(run)
     return null
   }
 
-  // 3. Lost — full wipe: the entire party is dead; the run ends immediately,
-  //    survivors (nobody) carry nothing further.
+  // 3. Lost — full wipe: the entire party is dead.
+  //    In infinite mode, characters stay at HP 0; reset to node 0 and continue.
   if (battleResult.status === 'lost') {
+    if (run.infinite) {
+      loopRun(run)
+      return null
+    }
     run.status = 'lost'
-    return buildResult(run, profile, [], battleResult.koIds, {})
+    return buildResult(run, profile, [], battleResult.koIds, {}, battleResult.log)
   }
 
   // 4. Fled — the party escaped the battle; run ends as abandoned.
   run.status = 'abandoned'
-  return buildResult(run, profile, survivors, battleResult.koIds, {})
+  return buildResult(run, profile, survivors, battleResult.koIds, {}, battleResult.log)
 }
 
 /**

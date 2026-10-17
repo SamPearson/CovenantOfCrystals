@@ -268,9 +268,9 @@ export interface ScriptActorSnapshot {
   maxMp: number
   statuses: ActiveStatusKind[]
   /** Current effective stats (after status modifiers) — for stat-compare. */
-  stats: { hp: number; atk: number; def: number; mag: number; res: number; spd: number }
+  stats: { hp: number; mp: number; atk: number; def: number; mag: number; res: number; spd: number }
   /** Permanent base stats — for `ofCurrent` stat-compare comparisons. */
-  baseStats: { hp: number; atk: number; def: number; mag: number; res: number; spd: number }
+  baseStats: { hp: number; mp: number; atk: number; def: number; mag: number; res: number; spd: number }
   /** Combat element (none when absent) — for `weak-to`. */
   element: Element
   /** Enemy rank for `enemy-rank`; undefined for player actors. */

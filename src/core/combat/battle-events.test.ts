@@ -9,7 +9,7 @@ function makeActor(id: string, side: BattleActor['side']): BattleActor {
     sourceId: id,
     side,
     name: id,
-    stats: { hp: 100, atk: 10, def: 5, mag: 5, res: 5, spd: 5 },
+    stats: { hp: 100, mp: 20, atk: 10, def: 5, mag: 5, res: 5, spd: 5 },
     hp: 80,
     mp: 10,
     statuses: [],
@@ -23,6 +23,12 @@ function makeBattle(): BattleState {
     ally: makeActor('ally', 'player'),
     goblin: makeActor('goblin', 'enemy'),
   }
+  const logger: BattleState['logger'] = {
+    entries: [],
+    log() {},
+    getEntries() { return this.entries },
+    clear() { this.entries.length = 0 },
+  }
   return {
     seed: 1,
     actors,
@@ -32,6 +38,7 @@ function makeBattle(): BattleState {
     pendingEvents: [],
     reactionQueue: [],
     log: [],
+    logger,
     status: 'ongoing',
     over: false,
   }

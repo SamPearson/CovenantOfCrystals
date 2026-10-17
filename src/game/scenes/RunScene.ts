@@ -137,6 +137,8 @@ export class RunScene extends Phaser.Scene {
   // Start screen
   // -------------------------------------------------------------------------
 
+  private infiniteMode = false
+
   private buildStartScreen(): void {
     this.content.removeAll(true)
     this.buttons = []
@@ -167,9 +169,37 @@ export class RunScene extends Phaser.Scene {
       return
     }
 
+    // Infinite mode toggle
+    const toggleY = y + 14
+    const toggleLabel = this.infiniteMode ? 'ON' : 'OFF'
+    const toggleColor = this.infiniteMode ? THEME.colors.gold : THEME.colors.textDim
+    const toggleText = uiText(this, NODE_PANEL_X + 20, toggleY, 'INFINITE MODE:', {
+      size: 'xs', color: THEME.colors.textMuted, family: 'display',
+    }, this.content)
+    const toggle = uiText(this, NODE_PANEL_X + 20 + toggleText.width + 8, toggleY, toggleLabel, {
+      size: 'xs', color: toggleColor, family: 'display',
+    }, this.content)
+    this.add.rectangle(
+      NODE_PANEL_X + 20 + toggleText.width + 8 + toggle.width / 2 + 40,
+      toggleY + toggle.height / 2,
+      80,
+      toggle.height + 8,
+      0x000000,
+      0,
+    )
+      .setInteractive({ useHandCursor: true })
+      .on('pointerdown', () => {
+        this.infiniteMode = !this.infiniteMode
+        this.buildStartScreen()
+      })
+    ;(toggle.text as any) = this.infiniteMode ? 'ON' : 'OFF'
+    toggle.setColor(this.infiniteMode ? colorHex(THEME.colors.gold) : THEME.colors.textDim)
+
+    const buttonRowY = y + 30
     let bx = NODE_PANEL_X + 20
     for (const length of RUN_LENGTHS) {
-      this.addButton(bx, y + 40, `${length} Battles`, () => this.beginRun(length), { width: 160, height: 40 })
+      const label = this.infiniteMode ? `${length} Battles (∞)` : `${length} Battles`
+      this.addButton(bx, buttonRowY, label, () => this.beginRun(length), { width: 160, height: 40 })
       bx += 180
     }
   }
@@ -181,7 +211,7 @@ export class RunScene extends Phaser.Scene {
       this.scene.start('MetaScene')
       return
     }
-    startRun(partyIds, length, Date.now())
+    startRun(partyIds, length, Date.now(), { infinite: this.infiniteMode })
     const run = getActiveRun()
     if (run) this.buildRunMap(run)
   }
@@ -193,7 +223,8 @@ export class RunScene extends Phaser.Scene {
   private buildRunMap(run: ActiveRun): void {
     this.content.removeAll(true)
     this.buttons = []
-    this.headerGold.setText(`Seed ${run.seed}  \u00b7  Gold ${run.goldEarned}`)
+    const suffix = run.infinite ? ` · Loop ${(run.loops ?? 0).toFixed(0)}` : ''
+    this.headerGold.setText(`Seed ${run.seed}  \u00b7  Gold ${run.goldEarned}${suffix}`)
 
     this.addButton(this.scale.width - 392, 8, 'Stop Points', () => this.openStopDialog(), {
       width: 120,
@@ -294,6 +325,8 @@ export class RunScene extends Phaser.Scene {
     uiText(this, cx, CONTENT_TOP + 12, 'Party', { size: 'lg', color: THEME.colors.gold, family: 'display' },
       this.content)
 
+    // In infinite mode, KO'd characters stay at HP 0 and are still in the party.
+    // We need to track who was KO'd in the last battle so we can display them.
     const members = partyByIds(getProfile(), run.party)
     if (members.length === 0) {
       uiText(this, cx, CONTENT_TOP + 48, 'All party members have fallen.', {
@@ -304,8 +337,9 @@ export class RunScene extends Phaser.Scene {
     }
     let y = CONTENT_TOP + 48
     for (const member of members) {
+      const koText = run.infinite ? ' (KO)' : ''
       uiText(this, cx, y, member.name, { size: 'md', color: THEME.colors.text, family: 'display' }, this.content)
-      uiText(this, cx + PARTY_PANEL_W - 40, y, `Lv ${member.level}`, {
+      uiText(this, cx + PARTY_PANEL_W - 40, y, `Lv ${member.level}${koText}`, {
         size: 'sm',
         color: THEME.colors.borderLight,
       }).setOrigin(1, 0)

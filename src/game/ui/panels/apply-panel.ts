@@ -16,6 +16,7 @@ import {
 
 const STAT_LABELS: Record<StatKey, string> = {
   hp: 'HP',
+  mp: 'MP',
   atk: 'ATK',
   def: 'DEF',
   mag: 'MAG',

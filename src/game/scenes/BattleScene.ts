@@ -13,8 +13,9 @@
 import Phaser from 'phaser'
 import { THEME, colorHex, hexColor, setTheme, elementColor } from '../ui/theme'
 import { initThemes, getActiveTheme } from '../../core/themes'
-import { uiText, makePanel, makeSubpanel, makeButton, makeBadge, makeScrollRegion } from '../ui/widgets'
-import type { Button, ScrollRegion } from '../ui/widgets'
+import { uiText, makePanel, makeSubpanel, makeButton, makeBadge } from '../ui/widgets'
+import { createInlineCombatLog, CombatLogPanel } from '../ui/panels/combat-log'
+import type { Button } from '../ui/widgets'
 import { STONE_BG_KEY, createStoneTextures } from '../ui/textures'
 import { truncate, elementLabel } from '../ui/format'
 import { initStore, getProfile, mutate, getScript, setScriptMode } from '../../core/store'
@@ -97,7 +98,7 @@ export class BattleScene extends Phaser.Scene {
   private actionPanel!: Phaser.GameObjects.Container
   private actionPrompt!: Phaser.GameObjects.Text
   private seedLabel!: Phaser.GameObjects.Text
-  private logRegion!: ScrollRegion
+  private inlineLog: ReturnType<typeof createInlineCombatLog> | null = null
 
   private enemyCardsX!: number
   private enemyRowY!: number
@@ -222,8 +223,22 @@ export class BattleScene extends Phaser.Scene {
     this.actionPrompt = uiText(this, pad, actionY + 10, '', { size: 'sm', color: t.gold, family: 'display' }, this.root)
     this.actionPrompt.setOrigin(0, 0)
 
-    const logPanel = makePanel(this, LOG_PANEL_X, actionY, LOG_PANEL_W, this.scale.height - actionY - pad, {}, this.root)
-    this.logRegion = makeScrollRegion(this, logPanel, 8, 8, LOG_PANEL_W - 16, this.scale.height - actionY - pad - 16)
+    // Inline combat log with Simple/Advanced toggle
+    this.inlineLog = createInlineCombatLog(
+      this,
+      this.root,
+      LOG_PANEL_X + 8,
+      actionY + 8,
+      LOG_PANEL_W - 16,
+      this.scale.height - actionY - pad - 16,
+      this.battle.logger,
+      15,
+    )
+
+    // Button to open full combat log panel
+    makeButton(this, LOG_PANEL_X + LOG_PANEL_W - 90, actionY + 4, 'Full Log', () => {
+      this.openFullCombatLog()
+    }, { width: 80, height: 24, fontSize: 'xs' }, this.root)
   }
 
   private cardRowX(count: number, cardW: number): number {
@@ -873,16 +888,22 @@ export class BattleScene extends Phaser.Scene {
   // ---------------------------------------------------------------- log
 
   private renderLog(): void {
-    const limit = 12
-    const lines = this.battle.log.slice(-limit)
-    this.logRegion.content.removeAll(true)
-    let y = 0
-    for (const entry of lines) {
-      const text = uiText(this, 0, y, `${entry.turn}. ${entry.text}`, { size: 'xs', color: THEME.colors.text }, this.logRegion.content)
-      text.setOrigin(0, 0)
-      y += 14
-    }
-    this.logRegion.setContentHeight(y)
+    this.inlineLog?.update()
+  }
+
+  /** Opens the full combat log panel overlay. */
+  private openFullCombatLog(): void {
+    const panel = new CombatLogPanel({
+      scene: this,
+      parent: this.root,
+      x: (this.scale.width - 700) / 2,
+      y: (this.scale.height - 500) / 2,
+      width: 700,
+      height: 500,
+      entries: this.battle.logger.getEntries(),
+      onClose: () => panel.destroy(),
+    })
+    panel.container.setDepth(1000)
   }
 
   // ---------------------------------------------------------------- floats

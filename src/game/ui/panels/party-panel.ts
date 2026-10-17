@@ -6,9 +6,11 @@ import { durabilityLabel, truncate, roleLabel, elementLabel } from '../format'
 import { getProfile, mutate } from '../../../core/store'
 import { removeFromParty } from '../../../core/party'
 import { getClass } from '../../../core'
+import { canLevelUp } from '../../../core/leveling'
 import type { TooltipLine } from '../../../core/tooltips'
 import { buildCharacterDetail } from './character-detail'
 import { makePortraitSlot, PORTRAIT_SLOT } from '../portrait'
+import { showLevelUpScreen } from './level-up-panel'
 
 function characterTooltip(charId: string): TooltipLine[] {
   const profile = getProfile()
@@ -112,15 +114,27 @@ export class PartyPanel extends Panel {
 
     if (this.selected && profile.characters[this.selected]) {
       const charId = this.selected
-      buildCharacterDetail(this.scene, content, pad, detailY, this.rect.w - pad * 2, detailH, charId, [
-        {
-          label: 'To box',
-          color: THEME.colors.accentDark,
+      const character = profile.characters[charId]
+      const actions: { label: string; onClick: () => void; disabled?: boolean; color?: number }[] = []
+      if (character && canLevelUp(character)) {
+        actions.push({
+          label: 'Level Up',
+          color: THEME.colors.gold,
           onClick: () => {
-            mutate((p) => removeFromParty(p, charId))
+            showLevelUpScreen(this.scene, charId, () => {
+              this.refresh()
+            })
           },
+        })
+      }
+      actions.push({
+        label: 'To box',
+        color: THEME.colors.accentDark,
+        onClick: () => {
+          mutate((p) => removeFromParty(p, charId))
         },
-      ])
+      })
+      buildCharacterDetail(this.scene, content, pad, detailY, this.rect.w - pad * 2, detailH, charId, actions)
     } else {
       uiText(
         this.scene,

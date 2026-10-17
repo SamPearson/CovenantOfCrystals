@@ -22,7 +22,7 @@ function actor(id = 'a1', hp = 100): BattleActor {
     sourceId: id,
     side: 'enemy',
     name: id,
-    stats: { hp: 100, atk: 10, def: 10, mag: 10, res: 10, spd: 10 },
+    stats: { hp: 100, mp: 20, atk: 10, def: 10, mag: 10, res: 10, spd: 10 },
     hp,
     mp: 50,
     statuses: [],

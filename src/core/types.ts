@@ -5,10 +5,50 @@
 
 import type { CharacterScript, EventPattern } from './scripting/types'
 
-export type StatKey = 'hp' | 'atk' | 'def' | 'mag' | 'res' | 'spd'
+export interface DamageMath {
+  base: number
+  atkStat: number
+  defStat: number
+  ratio: number
+  elementMult: number
+  defendMult: number
+  varianceMult: number
+  critMult: number
+  final: number
+}
+
+export interface HealMath {
+  basePower: number
+  mag: number
+  magRef: number
+  final: number
+}
+
+export interface SpeedMath {
+  spd: number
+  actionDelay: number
+  spdRef: number
+  timeToNext: number
+  nextAt: number
+}
+
+export interface BattleLogEntry {
+  id: number
+  turn: number
+  actorId?: string
+  text: string
+  simple: string
+  advanced: string
+  damageMath?: DamageMath
+  healMath?: HealMath
+  speedMath?: SpeedMath
+}
+
+export type StatKey = 'hp' | 'mp' | 'atk' | 'def' | 'mag' | 'res' | 'spd'
 
 export interface StatBlock {
   hp: number
+  mp: number
   atk: number
   def: number
   mag: number
@@ -180,6 +220,10 @@ export interface Character {
   scriptId?: string
   /** Per-character auto/manual toggle that persists across battles. 'auto' = use scriptId; 'manual' = player control. */
   scriptMode?: 'auto' | 'manual'
+  /** Current HP (0 while KO'd). Persisted across battles for infinite mode (Phase 5). */
+  hp?: number
+  /** Current MP. Persisted across battles for infinite mode (Phase 5). */
+  mp?: number
 }
 
 export interface Inventory {
@@ -248,6 +292,10 @@ export interface ActiveRun {
   /** itemIds banked; converted to inventory at run resolution (S8). */
   drops: string[]
   status: RunStatus
+  /** Infinite mode: characters stay alive at HP 0, runs loop endlessly. */
+  infinite?: boolean
+  /** How many times the run has looped (infinite mode only). */
+  loops?: number
 }
 
 export type RunStatus = 'active' | 'won' | 'lost' | 'abandoned'
@@ -276,6 +324,8 @@ export interface RunResult {
   /** Permanent GearInstance ids (P3 gear is all-permanent, decision S5). */
   gearBanked: string[]
   xpGained: Record<string, number>
+  /** Structured combat log entries from the final battle (for post-battle review). */
+  battleLog?: BattleLogEntry[]
 }
 
 /**

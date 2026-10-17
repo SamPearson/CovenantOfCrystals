@@ -28,9 +28,9 @@ describe('stat helpers', () => {
   })
 
   it('lists stats in a canonical order', () => {
-    const stats = { hp: 1, atk: 2, def: 3, mag: 4, res: 5, spd: 6 }
+    const stats = { hp: 1, mp: 2, atk: 3, def: 4, mag: 5, res: 6, spd: 7 }
     const keys = statList(stats).map((s) => s.key)
-    expect(keys).toEqual(['hp', 'atk', 'def', 'mag', 'res', 'spd'])
+    expect(keys).toEqual(['hp', 'mp', 'atk', 'def', 'mag', 'res', 'spd'])
     expect(statList(stats)[0]!.value).toBe(1)
   })
 })

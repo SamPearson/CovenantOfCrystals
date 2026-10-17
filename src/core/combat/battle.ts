@@ -17,6 +17,7 @@ import type {
   PendingReaction,
   TurnOutcome,
 } from './types'
+import { createBattleLogger, calculateDamageMath, formatDamageMath } from './logger'
 import type { Character, EnemyDef, PlayerAiPresetId, SkillDef } from '../types'
 import type { CharacterScript } from '../scripting/types'
 import { derivedStats } from '../character'
@@ -72,13 +73,13 @@ export function createBattle(
       side: 'player',
       name: c.name,
       stats,
-      hp: stats.hp,
-      mp: BALANCE.maxMp,
+      hp: c.hp ?? stats.hp,
+      mp: c.mp ?? stats.mp,
       statuses: [],
       ko: false,
       element: classDef.element,
       skills: c.loadout.slice(),
-      maxMp: BALANCE.maxMp,
+      maxMp: c.mp ?? stats.mp,
       cooldowns: {},
       defending: false,
       ownTurn: 0,
@@ -96,12 +97,12 @@ export function createBattle(
       name: def.name,
       stats: def.stats,
       hp: def.stats.hp,
-      mp: 0,
+      mp: def.stats.mp,
       statuses: [],
       ko: false,
       element: def.element,
       skills: def.skills.slice(),
-      maxMp: 0,
+      maxMp: def.stats.mp,
       cooldowns: {},
       defending: false,
       ownTurn: 0,
@@ -132,6 +133,7 @@ export function createBattle(
     pendingEvents: [],
     reactionQueue: [],
     log: [],
+    logger: createBattleLogger(),
     status: 'ongoing',
     over: false,
   }
@@ -164,8 +166,9 @@ export function performAction(
 
   const log: BattleLogEntry[] = []
   const push = (text: string, who?: string): void => {
-    log.push({ id: battle.log.length, turn, actorId: who, text })
-    battle.log.push(log[log.length - 1]!)
+    const entry: BattleLogEntry = { id: battle.log.length, turn, actorId: who, text, simple: text, advanced: text }
+    log.push(entry)
+    battle.log.push(entry)
   }
 
   // Reactions scheduled for this clock tick resolve before the turn plays.
@@ -260,15 +263,42 @@ function resolveAttack(
   if (!hitCheck(accuracy, BALANCE.dodgeRate, rng)) {
     battle.pendingEvents.push({ kind: 'evaded', actorId: target.id, sourceId: actor.id })
     push(`${actor.name}'s attack misses ${target.name}.`, actor.id)
+    battle.logger.log({
+      turn: battle.turnCount,
+      actorId: actor.id,
+      text: `${actor.name}'s attack misses ${target.name}.`,
+      simple: `${actor.name}'s attack misses ${target.name}.`,
+      advanced: `${actor.name}'s attack misses ${target.name}. (accuracy ${(accuracy * (1 - BALANCE.dodgeRate)).toFixed(2)})`,
+    })
     return BALANCE.actionDelays.attack
   }
   const rating = physicalDamage(BALANCE.basicAttackPower, atk, def)
+  const varianceRoll = rng()
+  const crit = rollCrit(rng, BALANCE.critRate)
   const damage = finalizeDamage(rating, {
     attackElement: actor.element ?? 'none',
     defendElement: target.element ?? 'none',
     defending: target.defending,
-    varianceRoll: rng(),
-    crit: rollCrit(rng, BALANCE.critRate),
+    varianceRoll,
+    crit,
+  })
+  const damageMath = calculateDamageMath(
+    BALANCE.basicAttackPower,
+    atk,
+    def,
+    actor.element ?? 'none',
+    target.element ?? 'none',
+    target.defending ?? false,
+    varianceRoll,
+    crit,
+  )
+  battle.logger.log({
+    turn: battle.turnCount,
+    actorId: actor.id,
+    text: `${actor.name} hits ${target.name} for ${damage}.`,
+    simple: `${actor.name} hits ${target.name} for ${damage}.`,
+    advanced: `${actor.name} hits ${target.name} for ${damage}. (${formatDamageMath(damageMath)})`,
+    damageMath,
   })
   return dealDamage(battle, actor, target, damage, push, BALANCE.actionDelays.attack)
 }
@@ -737,10 +767,15 @@ export function choosePartyAction(
 export function getBattleResult(battle: BattleState): BattleResult {
   if (!battle.over) throw new Error('battle is not over yet')
   const party = Object.values(battle.actors).filter((a) => a.side === 'player')
+  const survivorHp: Record<string, number> = {}
+  for (const a of party) {
+    if (!a.ko) survivorHp[a.id] = a.hp
+  }
   return {
     status: battle.status as BattleResult['status'],
     koIds: party.filter((a) => a.ko).map((a) => a.sourceId),
     survivors: party.filter((a) => !a.ko).map((a) => a.sourceId),
+    survivorHp,
     // EnemyDefs carry no xp/drops yet — shapes are emitted empty (Phase 3/5 fills them).
     xpAwarded: {},
     drops: [],
