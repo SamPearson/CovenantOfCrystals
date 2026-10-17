@@ -5,7 +5,7 @@
 
 import Phaser from 'phaser'
 import { THEME, hexColor } from '../theme'
-import { uiText, makePanel, makeButton, makeScrollRegion } from '../widgets'
+import { uiText, makePanel, makeButton, makeScrollRegion, type Button } from '../widgets'
 import type { ScrollRegion } from '../widgets'
 import type { BattleLogEntry, DamageMath, HealMath, SpeedMath } from '../../../core/types'
 
@@ -25,10 +25,13 @@ export class CombatLogPanel {
   private scrollRegion!: ScrollRegion
   private entries: BattleLogEntry[]
   private mode: 'simple' | 'advanced' = 'simple'
-  private modeBadge: Phaser.GameObjects.Container | null = null
+  private simpleBtn!: Button
+  private advBtn!: Button
+  private readonly viewportW: number
 
   constructor(config: CombatLogConfig) {
     this.entries = config.entries
+    this.viewportW = config.width - 16 // scroll region viewport width
 
     // Outer panel
     this.container = config.scene.add.container(config.x, config.y)
@@ -36,27 +39,30 @@ export class CombatLogPanel {
 
     makePanel(config.scene, 0, 0, config.width, config.height, {}, this.container)
 
-    // Header
-    uiText(config.scene, 16, 12, 'Combat Log', {
+    // Header bar (top)
+    const headerY = 12
+    uiText(config.scene, 16, headerY, 'Combat Log', {
       size: 'lg',
       color: THEME.colors.gold,
       family: 'display',
     }, this.container)
 
-    // Simple/Advanced toggle
-    this.createModeToggle(config.scene, config.width - 16 - 120, 16)
+    // Simple/Advanced toggle (top right)
+    this.createModeToggle(config.scene, config.width - 16 - 140, headerY)
 
-    // Close button
-    makeButton(config.scene, config.width - 16 - 80, config.height - 44, 'Close', () => {
-      config.onClose()
-    }, { width: 80, height: 32, fontSize: 'sm' }, this.container)
-
-    // Scroll region
-    const scrollH = config.height - 56
-    this.scrollRegion = makeScrollRegion(config.scene, this.container, 8, 44, config.width - 16, scrollH, {
+    // Scroll region (below header, above footer)
+    const footerH = 48
+    const scrollY = 44
+    const scrollH = config.height - scrollY - footerH
+    this.scrollRegion = makeScrollRegion(config.scene, this.container, 8, scrollY, this.viewportW, scrollH, {
       fillColor: THEME.colors.face,
       strokeColor: THEME.colors.border,
     })
+
+    // Close button (bottom right, in footer — outside the scroll region's interactive layer)
+    makeButton(config.scene, config.width - 16 - 80, config.height - footerH + 8, 'Close', () => {
+      config.onClose()
+    }, { width: 80, height: 32, fontSize: 'sm' }, this.container)
 
     this.render()
   }
@@ -65,7 +71,7 @@ export class CombatLogPanel {
     const toggleContainer = scene.add.container(x, y)
     this.container.add(toggleContainer)
 
-    const simpleBtn = makeButton(scene, 0, 0, 'Simple', () => this.setMode('simple'), {
+    this.simpleBtn = makeButton(scene, 0, 0, 'Simple', () => this.setMode('simple'), {
       width: 60,
       height: 24,
       fontSize: 'xs',
@@ -73,37 +79,30 @@ export class CombatLogPanel {
       labelColor: this.mode === 'simple' ? THEME.colors.textOnAccent : THEME.colors.textMuted,
     }, toggleContainer)
 
-    const advBtn = makeButton(scene, 66, 0, 'Advanced', () => this.setMode('advanced'), {
+    this.advBtn = makeButton(scene, 66, 0, 'Advanced', () => this.setMode('advanced'), {
       width: 70,
       height: 24,
       fontSize: 'xs',
       color: this.mode === 'advanced' ? THEME.colors.accent : THEME.colors.panel,
       labelColor: this.mode === 'advanced' ? THEME.colors.textOnAccent : THEME.colors.textMuted,
     }, toggleContainer)
-
-    this.modeBadge = toggleContainer
-    // Store button refs for updating
-    ;(toggleContainer as any).simpleBtn = simpleBtn
-    ;(toggleContainer as any).advBtn = advBtn
   }
 
   private setMode(mode: 'simple' | 'advanced'): void {
     this.mode = mode
-    const tc = this.modeBadge as any
-    if (tc?.simpleBtn && tc?.advBtn) {
-      tc.simpleBtn.container.list[0].setFillStyle(
-        mode === 'simple' ? THEME.colors.accent : THEME.colors.panel
-      )
-      tc.simpleBtn.container.list[2].setColor(
-        mode === 'simple' ? THEME.colors.textOnAccent : THEME.colors.textMuted
-      )
-      tc.advBtn.container.list[0].setFillStyle(
-        mode === 'advanced' ? THEME.colors.accent : THEME.colors.panel
-      )
-      tc.advBtn.container.list[2].setColor(
-        mode === 'advanced' ? THEME.colors.textOnAccent : THEME.colors.textMuted
-      )
-    }
+    // Update button appearances using the Button API
+    ;(this.simpleBtn.container.list[0] as Phaser.GameObjects.Rectangle).setFillStyle(
+      mode === 'simple' ? THEME.colors.accent : THEME.colors.panel
+    )
+    ;(this.simpleBtn.container.list[2] as Phaser.GameObjects.Text).setColor(
+      mode === 'simple' ? THEME.colors.textOnAccent : THEME.colors.textMuted
+    )
+    ;(this.advBtn.container.list[0] as Phaser.GameObjects.Rectangle).setFillStyle(
+      mode === 'advanced' ? THEME.colors.accent : THEME.colors.panel
+    )
+    ;(this.advBtn.container.list[2] as Phaser.GameObjects.Text).setColor(
+      mode === 'advanced' ? THEME.colors.textOnAccent : THEME.colors.textMuted
+    )
     this.render()
   }
 
@@ -122,8 +121,8 @@ export class CombatLogPanel {
   private renderEntry(entry: BattleLogEntry, y: number): number {
     const { scene } = this.scrollRegion.content
     const startY = y
-    const pad = 8
-    const innerW = this.scrollRegion.container.width - pad * 2 - 8 // minus scrollbar
+    const pad = 12
+    const innerW = this.viewportW - pad * 2 - 8 // minus scrollbar
 
     // Turn marker + simple text
     const simpleText = `${entry.turn > 0 ? `T${entry.turn} ` : ''}${entry.simple || entry.text}`
@@ -136,16 +135,21 @@ export class CombatLogPanel {
 
     // Advanced details
     if (this.mode === 'advanced') {
+      // Structured math first. When the `advanced` prose merely repeats a
+      // formula these blocks already show, skip it so math isn't printed twice.
+      let formulaShown = false
       if (entry.damageMath) {
         y = this.renderDamageMath(entry.damageMath, y, pad, innerW)
+        formulaShown = true
       }
       if (entry.healMath) {
         y = this.renderHealMath(entry.healMath, y, pad, innerW)
+        formulaShown = true
       }
       if (entry.speedMath) {
         y = this.renderSpeedMath(entry.speedMath, y, pad, innerW)
       }
-      if (entry.advanced && entry.advanced !== entry.simple) {
+      if (!formulaShown && entry.advanced && entry.advanced !== entry.simple) {
         const adv = uiText(scene, pad, y, entry.advanced, {
           size: 'xs',
           color: THEME.colors.textMuted,
@@ -297,16 +301,26 @@ export function createInlineCombatLog(
   uiText(scene, 8, 4, 'Log', { size: 'xs', color: THEME.colors.textMuted, family: 'display' }, container)
 
   let mode: 'simple' | 'advanced' = 'simple'
-  makeButton(scene, width - 68, 0, 'Adv.', () => {
+  const modeBtn = makeButton(scene, width - 68, 0, 'Adv.', () => {
     mode = mode === 'simple' ? 'advanced' : 'simple'
+    updateModeButton()
     update()
   }, { width: 60, height: 20, fontSize: 'xs', color: THEME.colors.panel }, container)
 
+  function updateModeButton(): void {
+    ;(modeBtn.container.list[0] as Phaser.GameObjects.Rectangle).setFillStyle(mode === 'advanced' ? THEME.colors.accent : THEME.colors.panel)
+    ;(modeBtn.container.list[2] as Phaser.GameObjects.Text).setColor(mode === 'advanced' ? THEME.colors.textOnAccent : THEME.colors.textMuted)
+  }
+
   // Scroll region
-  const scrollRegion = makeScrollRegion(scene, container, 4, 22, width - 8, height - 26, {
+  const viewportW = width - 8
+  const scrollRegion = makeScrollRegion(scene, container, 4, 22, viewportW, height - 26, {
     fillColor: 0x000000,
     strokeColor: 0x000000,
   })
+
+  const pad = 8
+  const innerW = viewportW - pad * 2 - 8
 
   function update(): void {
     scrollRegion.content.removeAll(true)
@@ -314,16 +328,20 @@ export function createInlineCombatLog(
     let yy = 4
 
     for (const entry of entries) {
-      const simpleText = `${entry.turn > 0 ? `T${entry.turn} ` : ''}${mode === 'simple' ? (entry.simple || entry.text) : (entry.advanced || entry.simple || entry.text)}`
-      const text = uiText(scene, 4, yy, simpleText, {
+      // Main line always shows the simple text; Advanced appends the math
+      // below, so the `advanced` prose (which embeds the same formula) must
+      // not replace it — otherwise the formula would print twice.
+      const simpleText = `${entry.turn > 0 ? `T${entry.turn} ` : ''}${entry.simple || entry.text}`
+      const text = uiText(scene, pad, yy, simpleText, {
         size: 'xs',
         color: mode === 'simple' ? THEME.colors.text : THEME.colors.textMuted,
-        wordWrap: width - 24,
+        wordWrap: innerW,
       }, scrollRegion.content)
       text.setOrigin(0, 0)
       yy += text.height + 2
 
       if (mode === 'advanced') {
+        let formulaShown = false
         if (entry.damageMath) {
           const dm = entry.damageMath
           const parts = [
@@ -336,30 +354,41 @@ export function createInlineCombatLog(
           if (dm.critMult !== 1) parts.push(`CRIT x${dm.critMult}`)
           parts.push(`= ${dm.final}`)
           const formula = parts.join(' → ')
-          const fText = uiText(scene, 8, yy, formula, {
+          const fText = uiText(scene, pad + 4, yy, formula, {
             size: 'xs',
             color: THEME.colors.accentBlue,
-            wordWrap: width - 32,
+            wordWrap: innerW - 8,
           }, scrollRegion.content)
           yy += fText.height + 2
+          formulaShown = true
         }
         if (entry.healMath) {
           const hm = entry.healMath
-          const fText = uiText(scene, 8, yy, `heal: base ${hm.basePower} | MAG ${hm.mag}/${hm.magRef} = ${hm.final}`, {
+          const fText = uiText(scene, pad + 4, yy, `heal: base ${hm.basePower} | MAG ${hm.mag}/${hm.magRef} = ${hm.final}`, {
             size: 'xs',
             color: THEME.colors.good,
-            wordWrap: width - 32,
+            wordWrap: innerW - 8,
           }, scrollRegion.content)
           yy += fText.height + 2
+          formulaShown = true
         }
         if (entry.speedMath) {
           const sm = entry.speedMath
-          const fText = uiText(scene, 8, yy, `SPD ${sm.spd} delay ${sm.actionDelay} next ${sm.timeToNext.toFixed(1)}`, {
+          const fText = uiText(scene, pad + 4, yy, `SPD ${sm.spd} delay ${sm.actionDelay} next ${sm.timeToNext.toFixed(1)}`, {
             size: 'xs',
             color: THEME.colors.textMuted,
-            wordWrap: width - 32,
+            wordWrap: innerW - 8,
           }, scrollRegion.content)
           yy += fText.height + 2
+        }
+        // e.g. miss accuracy — prose detail with no structured math block.
+        if (!formulaShown && entry.advanced && entry.advanced !== entry.simple) {
+          const advText = uiText(scene, pad + 4, yy, entry.advanced, {
+            size: 'xs',
+            color: THEME.colors.textMuted,
+            wordWrap: innerW - 8,
+          }, scrollRegion.content)
+          yy += advText.height + 2
         }
       }
 
@@ -367,8 +396,8 @@ export function createInlineCombatLog(
       const g = scene.add.graphics()
       g.lineStyle(1, THEME.colors.border, 0.2)
       g.beginPath()
-      g.moveTo(4, yy)
-      g.lineTo(width - 12, yy)
+      g.moveTo(pad, yy)
+      g.lineTo(pad + innerW, yy)
       g.strokePath()
       scrollRegion.content.add(g)
       yy += 2

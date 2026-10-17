@@ -17,7 +17,7 @@ import type {
   PendingReaction,
   TurnOutcome,
 } from './types'
-import { createBattleLogger, calculateDamageMath, formatDamageMath } from './logger'
+import { createBattleLogger, calculateDamageMath, calculateHealMath, formatDamageMath, formatHealMath } from './logger'
 import type { Character, EnemyDef, PlayerAiPresetId, SkillDef } from '../types'
 import type { CharacterScript } from '../scripting/types'
 import { derivedStats } from '../character'
@@ -54,6 +54,13 @@ const WAITING_DELAY = BALANCE.actionDelays.attack
  * (e.g. two reactions re-triggering each other) degrades to being contained.
  */
 const REACTION_EVENT_BUDGET = 200
+
+/**
+ * Optional structured detail a `push`ed log line carries. The same entry
+ * object lands in the turn log, `battle.log` (post-battle review) and
+ * `battle.logger` (live HUD), so both combat log views can render the math.
+ */
+type LogDetail = Partial<Pick<BattleLogEntry, 'advanced' | 'damageMath' | 'healMath' | 'speedMath'>>
 
 /** Creates a seeded battle state: party vs. enemy squad on a shared CTB queue. */
 export function createBattle(
@@ -165,8 +172,18 @@ export function performAction(
   if (actor.ko) throw new Error(`cannot act: ${actorId} is KO'd`)
 
   const log: BattleLogEntry[] = []
-  const push = (text: string, who?: string): void => {
-    const entry: BattleLogEntry = { id: battle.log.length, turn, actorId: who, text, simple: text, advanced: text }
+  const push = (text: string, who?: string, detail?: LogDetail): void => {
+    const entry: BattleLogEntry = {
+      id: battle.log.length,
+      turn,
+      actorId: who,
+      text,
+      simple: text,
+      advanced: detail?.advanced ?? text,
+      ...(detail?.damageMath ? { damageMath: detail.damageMath } : {}),
+      ...(detail?.healMath ? { healMath: detail.healMath } : {}),
+      ...(detail?.speedMath ? { speedMath: detail.speedMath } : {}),
+    }
     log.push(entry)
     battle.log.push(entry)
     battle.logger.log(entry)
@@ -214,6 +231,7 @@ export function performAction(
 
   // 3. Resolve the action.
   let delay: number
+  const actionEntryCount = log.length
   switch (action.kind) {
     case 'defend':
       actor.defending = true
@@ -235,6 +253,8 @@ export function performAction(
       delay = resolveItem(battle, actor, action, rng, push)
       break
   }
+  // The action's own first line — `finishTurn` stamps it with CTB timing.
+  const actionEntry = log[actionEntryCount]
 
   // 4. This actor's own-turn status durations tick down (§3).
   const expired = tickDurations(actor)
@@ -244,7 +264,7 @@ export function performAction(
   }
 
   // 5–6. Re-insert, then advance the clock and check battle end.
-  finishTurn(battle, actor, push, delay)
+  finishTurn(battle, actor, push, delay, actionEntry)
   // Reactions observe the fully-resolved turn state (§5.5), in sheet order.
   processEventQueue(battle, rng, push)
   return { actorId, action, log }
@@ -255,7 +275,7 @@ function resolveAttack(
   actor: BattleActor,
   action: BattleAction,
   rng: Rng,
-  push: (text: string, who?: string) => void,
+  push: (text: string, who?: string, detail?: LogDetail) => void,
 ): number {
   const target = pickTarget(battle, actor, 'enemy', action.targetId)
   const atk = effectiveStat(actor, 'atk')
@@ -263,13 +283,9 @@ function resolveAttack(
   const accuracy = effectiveAccuracy(actor, 1)
   if (!hitCheck(accuracy, BALANCE.dodgeRate, rng)) {
     battle.pendingEvents.push({ kind: 'evaded', actorId: target.id, sourceId: actor.id })
-    push(`${actor.name}'s attack misses ${target.name}.`, actor.id)
-    battle.logger.log({
-      turn: battle.turnCount,
-      actorId: actor.id,
-      text: `${actor.name}'s attack misses ${target.name}.`,
-      simple: `${actor.name}'s attack misses ${target.name}.`,
-      advanced: `${actor.name}'s attack misses ${target.name}. (accuracy ${(accuracy * (1 - BALANCE.dodgeRate)).toFixed(2)})`,
+    const text = `${actor.name}'s attack misses ${target.name}.`
+    push(text, actor.id, {
+      advanced: `${text} (accuracy ${(accuracy * (1 - BALANCE.dodgeRate)).toFixed(2)})`,
     })
     return BALANCE.actionDelays.attack
   }
@@ -293,15 +309,12 @@ function resolveAttack(
     varianceRoll,
     crit,
   )
-  battle.logger.log({
-    turn: battle.turnCount,
-    actorId: actor.id,
-    text: `${actor.name} hits ${target.name} for ${damage}.`,
-    simple: `${actor.name} hits ${target.name} for ${damage}.`,
+  // Single structured entry: `dealDamage`'s hit line carries the math into the
+  // turn log, `battle.log` and the logger alike (no duplicate plain line).
+  return dealDamage(battle, actor, target, damage, push, BALANCE.actionDelays.attack, {
     advanced: `${actor.name} hits ${target.name} for ${damage}. (${formatDamageMath(damageMath)})`,
     damageMath,
   })
-  return dealDamage(battle, actor, target, damage, push, BALANCE.actionDelays.attack)
 }
 
 function resolveSkill(
@@ -309,7 +322,7 @@ function resolveSkill(
   actor: BattleActor,
   action: BattleAction,
   rng: Rng,
-  push: (text: string, who?: string) => void,
+  push: (text: string, who?: string, detail?: LogDetail) => void,
 ): number {
   const skillId = action.skillId
   if (!skillId) throw new Error(`skill action without a skillId for ${actor.id}`)
@@ -350,7 +363,7 @@ function castSkill(
   skill: SkillDef,
   targetId: string | undefined,
   rng: Rng,
-  push: (text: string, who?: string) => void,
+  push: (text: string, who?: string, detail?: LogDetail) => void,
 ): void {
   const targets = resolveTargets(battle, actor, skill, targetId)
 
@@ -364,14 +377,29 @@ function castSkill(
         skill.scaling === 'mag'
           ? magicalDamage(skill.power, scaling, defense)
           : physicalDamage(skill.power, scaling, defense)
+      const varianceRoll = rng()
+      const crit = rollCrit(rng, BALANCE.critRate)
       const damage = finalizeDamage(rating, {
         attackElement: skill.element,
         defendElement: target.element ?? 'none',
         defending: target.defending,
-        varianceRoll: rng(),
-        crit: rollCrit(rng, BALANCE.critRate),
+        varianceRoll,
+        crit,
       })
-      dealDamage(battle, actor, target, damage, push)
+      const damageMath = calculateDamageMath(
+        skill.power,
+        scaling,
+        defense,
+        skill.element,
+        target.element ?? 'none',
+        target.defending ?? false,
+        varianceRoll,
+        crit,
+      )
+      dealDamage(battle, actor, target, damage, push, undefined, {
+        advanced: `${actor.name} hits ${target.name} for ${damage}. (${formatDamageMath(damageMath)})`,
+        damageMath,
+      })
     }
   } else if (skill.kind === 'heal') {
     const mag = effectiveStat(actor, 'mag')
@@ -379,7 +407,12 @@ function castSkill(
       const amount = healMagic(skill.power, mag)
       const healed = Math.min(target.stats.hp - target.hp, amount)
       target.hp += healed
-      push(`${target.name} recovers ${healed} HP.`, actor.id)
+      // `final` = applied HP so the breakdown matches a capped result too.
+      const healMath = { ...calculateHealMath(skill.power, mag), final: healed }
+      push(`${target.name} recovers ${healed} HP.`, actor.id, {
+        advanced: `${target.name} recovers ${healed} HP. (${formatHealMath(healMath)})`,
+        healMath,
+      })
     }
   } else if (skill.kind === 'utility') {
     for (const target of targets) {
@@ -407,7 +440,7 @@ function resolveItem(
   actor: BattleActor,
   action: BattleAction,
   rng: Rng,
-  push: (text: string, who?: string) => void,
+  push: (text: string, who?: string, detail?: LogDetail) => void,
 ): number {
   if (!action.itemId) throw new Error(`item action without an itemId for ${actor.id}`)
   const item = getItem(action.itemId)
@@ -454,13 +487,20 @@ function resolveItem(
 function finishTurn(
   battle: BattleState,
   actor: BattleActor,
-  push: (text: string, who?: string) => void,
+  push: (text: string, who?: string, detail?: LogDetail) => void,
   delay?: number,
+  actionEntry?: BattleLogEntry,
 ): void {
   if (delay !== undefined && !actor.ko && !battle.over) {
     const spd = effectiveStat(actor, 'spd')
-    const nextAt = battle.turnTime + timeToNextTurn(spd, delay)
+    const timeToNext = timeToNextTurn(spd, delay)
+    const nextAt = battle.turnTime + timeToNext
     battle.queue = insertActor(battle.queue, actor.id, actor.side, nextAt)
+    // Stamp the action's line with its CTB timing for the Advanced log view.
+    // The entry object is shared across every log sink, so one write covers all.
+    if (actionEntry) {
+      actionEntry.speedMath = { spd, actionDelay: delay, spdRef: BALANCE.spdRef, timeToNext, nextAt }
+    }
   }
 
   // Poison interval fires every N resolved turns, globally (§5).
@@ -499,8 +539,9 @@ function dealDamage(
   attacker: BattleActor,
   target: BattleActor,
   damage: number,
-  push: (text: string, who?: string) => void,
+  push: (text: string, who?: string, detail?: LogDetail) => void,
   fallbackDelay?: number,
+  detail?: LogDetail,
 ): number {
   battle.pendingEvents.push({ kind: 'attacked', actorId: target.id, sourceId: attacker.id })
   const wasSleeping = target.statuses.some((s) => s.kind === 'sleep')
@@ -512,7 +553,7 @@ function dealDamage(
     battle.pendingEvents.push({ kind: 'ally-kod', actorId: target.id, sourceId: attacker.id })
     push(`${target.name} falls.`, attacker.id)
   } else {
-    push(`${attacker.name} hits ${target.name} for ${damage}.`, attacker.id)
+    push(`${attacker.name} hits ${target.name} for ${damage}.`, attacker.id, detail)
   }
   return fallbackDelay ?? 0
 }
@@ -533,7 +574,7 @@ function reactionBusActive(battle: BattleState): battle is BattleState & {
 function processEventQueue(
   battle: BattleState,
   rng: Rng,
-  push: (text: string, who?: string) => void,
+  push: (text: string, who?: string, detail?: LogDetail) => void,
 ): void {
   if (!reactionBusActive(battle) || battle.over || battle.pendingEvents.length === 0) return
   let budget = REACTION_EVENT_BUDGET
@@ -563,7 +604,7 @@ function processEventQueue(
 function pumpReactions(
   battle: BattleState,
   rng: Rng,
-  push: (text: string, who?: string) => void,
+  push: (text: string, who?: string, detail?: LogDetail) => void,
 ): void {
   if (!reactionBusActive(battle) || battle.over || battle.reactionQueue.length === 0) return
   const due = battle.reactionQueue.filter((r) => r.at <= battle.turnTime)
@@ -622,7 +663,7 @@ function executeReaction(
   battle: BattleState,
   plan: ReactionPlan,
   rng: Rng,
-  push: (text: string, who?: string) => void,
+  push: (text: string, who?: string, detail?: LogDetail) => void,
 ): void {
   const actor = battle.actors[plan.actorId]
   if (!actor || actor.ko || battle.over) return
