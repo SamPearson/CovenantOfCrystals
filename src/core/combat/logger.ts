@@ -12,7 +12,7 @@ import type { BattleLogEntry, DamageMath, HealMath, SpeedMath } from '../types'
 
 export interface BattleLogger {
   entries: BattleLogEntry[]
-  log(entry: Omit<BattleLogEntry, 'id'>): void
+  log(entry: BattleLogEntry): void
   getEntries(): BattleLogEntry[]
   clear(): void
 }
@@ -21,8 +21,11 @@ export function createBattleLogger(): BattleLogger {
   const entries: BattleLogEntry[] = []
   return {
     entries,
-    log(entry: Omit<BattleLogEntry, 'id'>): void {
-      entries.push({ ...entry, id: entries.length })
+    log(entry: BattleLogEntry): void {
+      // Shared reference (not a copy): `push` writes the same entry object to
+      // the turn log, `battle.log` and here, and fields attached later (speed
+      // math, once the action's delay is known) must show up in every sink.
+      entries.push(entry)
     },
     getEntries(): BattleLogEntry[] {
       return [...entries]

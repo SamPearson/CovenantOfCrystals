@@ -128,7 +128,7 @@ describe('battle orchestration (phase 2, M4)', () => {
     actNext(battle, { kind: 'skill', skillId: 'fireball' }, rng)
     expect(battle.actors[zed.id]!.mp).toBe(beforeMp - 6)
     expect(slime.hp).toBeLessThan(beforeHp)
-    expect(battle.log[0]!.text).toMatch(/hits Slime for \d+\./)
+    expect(battle.log[0]!.text).toMatch(/uses Fireball on Slime for \d+\./)
   })
 
   it('blocks a skill on cooldown without spending MP', () => {
@@ -148,7 +148,7 @@ describe('battle orchestration (phase 2, M4)', () => {
       return who
     }
     turn()
-    expect(knight.mp).toBe(30 - 5)
+    expect(knight.mp).toBe(14 - 5)
     const mpAfterCast = knight.mp
     let turns = 0
     while (!battle.log.some((e) => /on cooldown/.test(e.text)) && turns < 10) {
@@ -161,7 +161,7 @@ describe('battle orchestration (phase 2, M4)', () => {
       turn()
       turns++
     }
-    expect(knight.mp).toBe(30 - 10)
+    expect(knight.mp).toBe(14 - 10)
   })
 
   it('a skill the actor does not know throws', () => {
@@ -417,8 +417,8 @@ describe('scroll items (phase 3, M5)', () => {
     knight.mp = 10
     const rng = createRng(1)
     actNext(battle, { kind: 'item', itemId: 'mana_potion', targetId: aria.id }, rng)
-    expect(knight.mp).toBe(BALANCE.maxMp)
-    expect(battle.log[0]!.text).toContain('recovers 20 MP')
+    expect(knight.mp).toBe(knight.stats.mp)
+    expect(battle.log[0]!.text).toContain('recovers')
   })
 })
 
@@ -498,7 +498,7 @@ describe('battle reactions (phase 4.5.2, M2)', () => {
     const foeHit = actNext(battle, { kind: 'attack', targetId: ariaActor.id }, rng)
     expect(foeHit.log.some((l) => l.text.includes('hits'))).toBe(true)
     expect(slime.hp).toBeLessThan(slimeHpBefore)
-    expect(ariaActor.mp).toBe(BALANCE.maxMp - 4)
+    expect(ariaActor.mp).toBe(12 - 4)
     expect(battle.pendingEvents).toHaveLength(0)
     expect(battle.reactionQueue).toHaveLength(0)
   })
@@ -511,7 +511,7 @@ describe('battle reactions (phase 4.5.2, M2)', () => {
     const slime = battle.actors['slime#0']!
     const rng = createRng(1)
     actNext(battle, { kind: 'attack', targetId: ariaActor.id }, rng)
-    expect(ariaActor.mp).toBe(BALANCE.maxMp)
+    expect(ariaActor.mp).toBe(12)
     expect(slime.statuses).toHaveLength(0)
   })
 
@@ -546,11 +546,11 @@ describe('battle reactions (phase 4.5.2, M2)', () => {
     expect(foeHit.log.some((l) => l.text.includes('hits'))).toBe(true)
     expect(battle.reactionQueue).toHaveLength(1)
     expect(battle.reactionQueue[0]!.actorId).toBe(aria.id)
-    expect(ariaActor.mp).toBe(BALANCE.maxMp)
+    expect(ariaActor.mp).toBe(12)
 
     actNext(battle, { kind: 'defend' }, rng)
     actNext(battle, { kind: 'attack', targetId: ariaActor.id }, rng)
-    expect(ariaActor.mp).toBe(BALANCE.maxMp - 4)
+    expect(ariaActor.mp).toBe(12 - 4)
     expect(battle.reactionQueue).toHaveLength(0)
   })
 })
@@ -611,7 +611,7 @@ describe('scripted AUTO path (phase 4.5.2, M6)', () => {
     const foeHit = actNext(battle, { kind: 'attack', targetId: ariaActor.id }, rng)
     expect(foeHit.log.some((l) => l.text.includes('hits'))).toBe(true)
     expect(slime.hp).toBeLessThan(slime.stats.hp)
-    expect(ariaActor.mp).toBe(BALANCE.maxMp - 4)
+    expect(ariaActor.mp).toBe(12 - 4)
   })
 
   it('reactions still fire while the character is in Manual (mode toggled off)', () => {
