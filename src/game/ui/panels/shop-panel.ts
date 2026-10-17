@@ -1,3 +1,4 @@
+import Phaser from 'phaser'
 import { Panel } from './panel'
 import { THEME } from '../theme'
 import { uiText, makeButton, makeSubpanel, type Button } from '../widgets'
@@ -11,12 +12,13 @@ import type { ItemDef } from '../../../core/types'
 
 /**
  * Phase 3 M7 shop tab (decision S10/S12): always-on potions plus the rotating
- * gear and skill stock on the left, and the owned gear that can be sold back
+ * gear and skill stock on the left, and the owned items that can be sold back
  * on the right. Buying/selling goes through the pure core guards inside
  * `mutate()`, matching the pattern established by the other meta panels.
  */
 export class ShopPanel extends Panel {
   private message: string | null = null
+  private buyQuantities = new Map<string, number>()
 
   refresh(): void {
     const content = this.rebuild()
@@ -47,6 +49,10 @@ export class ShopPanel extends Panel {
       const cx = pad + col * (cellW + cellGap)
       const ry = listY + 16 + row * (rowH + gap)
       const check = canBuyItem(profile, item.id)
+      const maxBuy = check.ok ? Math.floor(profile.gold / check.price!) : 0
+      const qty = this.buyQuantities.get(item.id) ?? 1
+      const clampedQty = Phaser.Math.Clamp(qty, 1, Math.max(1, maxBuy))
+
       makeSubpanel(this.scene, content, cx, ry, cellW, rowH)
       const hit = this.scene.add.rectangle(cx, ry, cellW, rowH, 0x000000, 0)
       hit.setOrigin(0)
@@ -69,30 +75,92 @@ export class ShopPanel extends Panel {
         { size: 'xs', color: THEME.colors.textMuted },
         content,
       )
-      const button: Button = makeButton(
-        this.scene,
-        cx + cellW - btnW - 4,
-        ry + 4,
-        `Buy ${check.price} gold`,
-        () => {
-          try {
-            mutate((p) => {
-              const result = buyItem(p, item.id)
-              this.message = result.ok ? `Purchased ${item.name} for ${result.price} gold` : (result.error ?? 'Cannot buy')
-            })
-          } catch (error) {
-            this.message = (error as Error).message
-          }
-          this.refresh()
-        },
-        { width: btnW, height: btnH, fontSize: 'xs' },
-        content,
-      )
-      if (!check.ok) button.setDisabled(true)
+
+      // Quantity selector for consumables
+      const isConsumable = item.type !== 'weapon' && item.type !== 'armor'
+      if (isConsumable && maxBuy > 1) {
+        const spinBtnW = 20
+        const spinBtnH = 20
+        const spinGap = 2
+        const spinX = cx + cellW - btnW - spinBtnW - spinGap - spinBtnW - spinGap - 4
+
+        makeButton(
+          this.scene,
+          spinX,
+          ry + 4,
+          '−',
+          () => {
+            this.buyQuantities.set(item.id, Math.max(1, clampedQty - 1))
+            this.refresh()
+          },
+          { width: spinBtnW, height: spinBtnH, color: THEME.colors.panelAlt, fontSize: 'xs', labelColor: THEME.colors.text },
+          content,
+        ).setDisabled(clampedQty <= 1)
+
+        uiText(this.scene, spinX + spinBtnW + spinGap, ry + 6, `${clampedQty}`, { size: 'xs', color: THEME.colors.text }, content)
+
+        makeButton(
+          this.scene,
+          spinX + spinBtnW + spinGap + 20,
+          ry + 4,
+          '+',
+          () => {
+            if (clampedQty < maxBuy) {
+              this.buyQuantities.set(item.id, clampedQty + 1)
+              this.refresh()
+            }
+          },
+          { width: spinBtnW, height: spinBtnH, color: THEME.colors.panelAlt, fontSize: 'xs', labelColor: THEME.colors.text },
+          content,
+        ).setDisabled(clampedQty >= maxBuy)
+
+        const button: Button = makeButton(
+          this.scene,
+          cx + cellW - btnW - 4,
+          ry + 4,
+          `Buy ${check.price! * clampedQty} gold`,
+          () => {
+            try {
+              mutate((p) => {
+                const result = buyItem(p, item.id, clampedQty)
+                this.message = result.ok ? `Purchased ${item.name} ×${clampedQty} for ${result.price} gold` : (result.error ?? 'Cannot buy')
+              })
+            } catch (error) {
+              this.message = (error as Error).message
+            }
+            this.refresh()
+          },
+          { width: btnW, height: btnH, fontSize: 'xs' },
+          content,
+        )
+        if (!check.ok) button.setDisabled(true)
+      } else {
+        // Single buy for gear/skills
+        const button: Button = makeButton(
+          this.scene,
+          cx + cellW - btnW - 4,
+          ry + 4,
+          `Buy ${check.price} gold`,
+          () => {
+            try {
+              mutate((p) => {
+                const result = buyItem(p, item.id)
+                this.message = result.ok ? `Purchased ${item.name} for ${result.price} gold` : (result.error ?? 'Cannot buy')
+              })
+            } catch (error) {
+              this.message = (error as Error).message
+            }
+            this.refresh()
+          },
+          { width: btnW, height: btnH, fontSize: 'xs' },
+          content,
+        )
+        if (!check.ok) button.setDisabled(true)
+      }
     })
 
     const sellX = pad * 2 + colW
-    uiText(this.scene, sellX, listY - 2, 'SELL GEAR', { size: 'xs', color: THEME.colors.accentBlue }, content)
+    uiText(this.scene, sellX, listY - 2, 'SELL', { size: 'xs', color: THEME.colors.accentBlue }, content)
 
     const equippedBy = new Map<string, string>()
     for (const char of Object.values(profile.characters)) {
@@ -102,6 +170,8 @@ export class ShopPanel extends Panel {
     }
 
     let sy = listY + 16
+
+    // Sell gear
     for (const g of profile.inventory.gear) {
       const item = getItem(g.itemId)
       const check = canSellItem(profile, g.id)
@@ -148,6 +218,63 @@ export class ShopPanel extends Panel {
         content,
       )
       if (!check.ok || onChar) button.setDisabled(true)
+      sy += rowH + gap
+    }
+
+    // Sell consumables (potions, scrolls, stat-shots)
+    const consumableCounts = new Map<string, number>()
+    for (const entry of profile.inventory.items) {
+      const def = getItem(entry.itemId)
+      if (def.type === 'weapon' || def.type === 'armor' || def.type === 'tome' || def.type === 'stat-shot') continue
+      consumableCounts.set(entry.itemId, (consumableCounts.get(entry.itemId) ?? 0) + entry.count)
+    }
+
+    for (const [itemId, count] of consumableCounts) {
+      if (count === 0) continue
+      const item = getItem(itemId)
+      const check = canSellItem(profile, itemId)
+      makeSubpanel(this.scene, content, sellX, sy, colW, rowH)
+      const hit = this.scene.add.rectangle(sellX, sy, colW, rowH, 0x000000, 0)
+      hit.setOrigin(0)
+      hit.setInteractive({ useHandCursor: false })
+      content.add(hit)
+      attachTooltip(this.scene, hit, () => describeItem(item))
+      uiText(
+        this.scene,
+        sellX + 8,
+        sy + 8,
+        truncate(item.name, 16),
+        { size: 'sm', color: THEME.rarity[item.rarity] },
+        content,
+      )
+      uiText(
+        this.scene,
+        sellX + 8,
+        sy + 22,
+        `×${count}  ${itemTypeLabel(item.type)}`,
+        { size: 'xs', color: THEME.colors.textMuted },
+        content,
+      )
+      const button: Button = makeButton(
+        this.scene,
+        sellX + colW - btnW - 6,
+        sy + 4,
+        `Sell ${check.price!} gold`,
+        () => {
+          try {
+            mutate((p) => {
+              const result = sellItem(p, itemId)
+              this.message = result.ok ? `Sold ${item.name} for ${result.price} gold` : (result.error ?? 'Cannot sell')
+            })
+          } catch (error) {
+            this.message = (error as Error).message
+          }
+          this.refresh()
+        },
+        { width: btnW, height: btnH },
+        content,
+      )
+      if (!check.ok) button.setDisabled(true)
       sy += rowH + gap
     }
 

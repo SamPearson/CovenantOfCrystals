@@ -224,6 +224,8 @@ export interface Character {
   hp?: number
   /** Current MP. Persisted across battles for infinite mode (Phase 5). */
   mp?: number
+  /** Combat card accent color (hex string). Persisted for UI customization. */
+  cardColor?: string
 }
 
 export interface Inventory {
