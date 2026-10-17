@@ -6,14 +6,13 @@
  */
 
 import { describe, expect, it } from 'vitest'
-import { BALANCE, getItem, ITEMS } from '../data'
+import { BALANCE, getItem, ITEMS, TOWNS } from '../data'
 import { createNewSave } from '../save.service'
 import { addGear, createGearInstance, hasItem } from '../inventory'
 import type { PlayerProfile } from '../types'
 import { createRng } from '../rng/rng'
 import {
   ALWAYS_POTIONS,
-  ALWAYS_STAT_SHOTS,
   buyItem,
   canBuyItem,
   canSellItem,
@@ -29,20 +28,25 @@ function profile(): PlayerProfile {
 }
 
 describe('generateShopStock', () => {
-  it('always offers the potions and stat-shots', () => {
-    const stock = generateShopStock(createRng(1))
-    expect(stock.always).toEqual([...ALWAYS_POTIONS, ...ALWAYS_STAT_SHOTS])
-    for (const id of ALWAYS_POTIONS) {
-      expect(getItem(id).type).toBe('consumable')
+  it('always offers the potions and stat-shots for default town (Aldwyn)', () => {
+    const stock = generateShopStock(createRng(1), 'aldwyn')
+    expect(stock.always).toEqual(TOWNS.aldwyn.alwaysStock)
+    for (const id of TOWNS.aldwyn.alwaysStock) {
+      const type = getItem(id).type
+      expect(['consumable', 'stat-shot']).toContain(type)
     }
-    for (const id of ALWAYS_STAT_SHOTS) {
-      expect(getItem(id).type).toBe('stat-shot')
+  })
+
+  it('always offers town-specific items for each town', () => {
+    for (const townId of Object.keys(TOWNS)) {
+      const stock = generateShopStock(createRng(1), townId)
+      expect(stock.always).toEqual(TOWNS[townId].alwaysStock)
     }
   })
 
   it('rotates exactly 4 gear and 3 skill items', () => {
     for (let seed = 0; seed < 20; seed++) {
-      const stock = generateShopStock(createRng(seed))
+      const stock = generateShopStock(createRng(seed), 'aldwyn')
       expect(stock.rotating.gear.length).toBe(BALANCE.economy.rotatingGear)
       expect(stock.rotating.skills.length).toBe(BALANCE.economy.rotatingSkillItems)
     }
@@ -50,7 +54,7 @@ describe('generateShopStock', () => {
 
   it('only puts catalog gear and skill items in rotation', () => {
     for (let seed = 0; seed < 20; seed++) {
-      const stock = generateShopStock(createRng(seed))
+      const stock = generateShopStock(createRng(seed), 'aldwyn')
       for (const id of stock.rotating.gear) {
         expect(['weapon', 'armor']).toContain(getItem(id).type)
       }
@@ -62,30 +66,30 @@ describe('generateShopStock', () => {
 
   it('draws distinct gear/skill items within one refresh', () => {
     for (let seed = 0; seed < 50; seed++) {
-      const stock = generateShopStock(createRng(seed))
+      const stock = generateShopStock(createRng(seed), 'aldwyn')
       expect(new Set(stock.rotating.gear).size).toBe(stock.rotating.gear.length)
       expect(new Set(stock.rotating.skills).size).toBe(stock.rotating.skills.length)
     }
   })
 
   it('is seeded and reproducible', () => {
-    const a = generateShopStock(createRng(42))
-    const b = generateShopStock(createRng(42))
+    const a = generateShopStock(createRng(42), 'aldwyn')
+    const b = generateShopStock(createRng(42), 'aldwyn')
     expect(b).toEqual(a)
   })
 
   it('changes with the seed', () => {
-    const a = generateShopStock(createRng(42))
-    const b = generateShopStock(createRng(43))
+    const a = generateShopStock(createRng(42), 'aldwyn')
+    const b = generateShopStock(createRng(43), 'aldwyn')
     expect(b).not.toEqual(a)
   })
 
   it('refreshShopStock replaces the current stock', () => {
     const p = profile()
     const before = p.shop
-    refreshShopStock(p, createRng(7))
-    expect(p.shop).toEqual(generateShopStock(createRng(7)))
-    expect(p.shop.always).toEqual([...ALWAYS_POTIONS, ...ALWAYS_STAT_SHOTS])
+    refreshShopStock(p, createRng(7), 'aldwyn')
+    expect(p.shop).toEqual(generateShopStock(createRng(7), 'aldwyn'))
+    expect(p.shop.always).toEqual(TOWNS.aldwyn.alwaysStock)
     expect(p.shop).not.toEqual(before)
   })
 })
@@ -107,7 +111,7 @@ describe('canBuyItem / buyItem', () => {
 
   it('refuses items that are not in stock', () => {
     const p = profile()
-    const stock = generateShopStock(createRng(1))
+    const stock = generateShopStock(createRng(1), 'aldwyn')
     const offItem = Object.keys(ITEMS).find((id) => !isInStock(stock, id))!
     p.shop = stock
     expect(canBuyItem(p, offItem).ok).toBe(false)

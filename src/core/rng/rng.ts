@@ -42,6 +42,42 @@ export function shuffle<T>(rng: Rng, items: readonly T[]): T[] {
   return result
 }
 
+/** Weighted Fisher–Yates shuffle — items with higher weight more likely to appear first. */
+export function weightedShuffle<T>(rng: Rng, items: readonly T[], getWeight: (item: T) => number): T[] {
+  const weighted = items.map(item => ({ item, weight: getWeight(item) }))
+  const result: T[] = []
+  while (weighted.length > 0) {
+    let totalWeight = 0
+    for (const w of weighted) totalWeight += w.weight
+    const roll = rng() * totalWeight
+    let acc = 0
+    let idx = 0
+    for (let i = 0; i < weighted.length; i++) {
+      acc += weighted[i].weight
+      if (roll <= acc) {
+        idx = i
+        break
+      }
+    }
+    result.push(weighted[idx].item)
+    weighted.splice(idx, 1)
+  }
+  return result
+}
+
+/** Weighted random pick from a non-empty array. */
+export function weightedPick<T>(rng: Rng, items: readonly T[], getWeight: (item: T) => number): T {
+  let totalWeight = 0
+  for (const item of items) totalWeight += getWeight(item)
+  const roll = rng() * totalWeight
+  let acc = 0
+  for (const item of items) {
+    acc += getWeight(item)
+    if (roll <= acc) return item
+  }
+  return items[items.length - 1]!
+}
+
 /** Returns true with the given probability. */
 export function chance(rng: Rng, probability: number): boolean {
   return rng() < probability

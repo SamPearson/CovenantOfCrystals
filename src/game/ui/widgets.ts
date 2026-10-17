@@ -331,12 +331,14 @@ export interface ScrollRegion {
 }
 
 /**
- * A scrollable, wheel+drag-aware viewport. Content children are rendered into a
- * DynamicTexture the exact size of the viewport, so anything outside the region
- * is hard-clipped by the texture bounds in both WebGL and Canvas (Phaser's
- * geometry masks are WebGL-unsupported, so they can't be relied on). The
- * `content` container is kept in the tree but invisible — it exists only as the
- * redraw source, which is why its children must be non-interactive.
+ * A scrollable, wheel+drag-aware viewport.
+ *
+ * - Non-interactive mode (default): Content rendered to DynamicTexture for hard
+ *   clipping in WebGL/Canvas. Children must be non-interactive.
+ * - Interactive mode: Content is rendered to DynamicTexture for visual clipping,
+ *   but a separate visible container handles input. Clicks are manually delegated
+ *   to buttons via hit-testing. This works in both WebGL and Canvas.
+ *
  * `setContentHeight` must be called once the content has been built.
  */
 export function makeScrollRegion(
@@ -346,14 +348,12 @@ export function makeScrollRegion(
   y: number,
   w: number,
   h: number,
-  opts: { fillColor?: number; strokeColor?: number } = {},
+  opts: { fillColor?: number; strokeColor?: number; interactive?: boolean } = {},
 ): ScrollRegion {
   const t = THEME.colors
+  const interactive = opts.interactive ?? false
   const container = scene.add.container(x, y)
   if (parent) parent.add(container)
-  container.once(Phaser.GameObjects.Events.DESTROY, () => {
-    scene.textures.remove(texKey)
-  })
 
   const bg = scene.add
     .rectangle(w / 2, h / 2, w, h, opts.fillColor ?? t.panelAlt, 0.92)
@@ -361,22 +361,29 @@ export function makeScrollRegion(
     .setRounded(4)
   const highlight = scene.add.rectangle(w / 2, 1.5, w - 10, 1, t.borderLight, 0.16)
 
+  // Content container for rendering (invisible, used as texture source)
+  const content = scene.add.container(0, 0)
+  content.visible = false
+
+  // For interactive mode, we need a visible container for input handling
+  // This container mirrors the content but is used for hit detection
+  const inputContent = interactive ? scene.add.container(0, 0) : content
+
   const texKey = `scroll-${Math.random().toString(36).slice(2, 9)}`
   const tex = scene.textures.addDynamicTexture(texKey, w, h)!
   const image = scene.add.image(0, 0, texKey).setOrigin(0, 0)
 
-  const content = scene.add.container(0, 0)
-  content.visible = false
-  container.add([bg, highlight, image, content])
+  container.add([bg, highlight, image, inputContent, content])
+  container.once(Phaser.GameObjects.Events.DESTROY, () => {
+    scene.textures.remove(texKey)
+  })
 
   const trackX = w - 8
   const track = scene.add.rectangle(trackX, h / 2, 4, h - 10, 0x000000, 0.35)
   const thumb = scene.add.rectangle(trackX, 4, 4, h - 10, t.borderLight, 0.85)
   container.add([track, thumb])
 
-  // Live hit surface. Content children are baked into the viewport texture and
-  // can never receive pointer events, so this transparent rect carries the
-  // interactive layer for the whole region (hover, drag, wheel).
+  // Hit surface for all input (wheel, drag, click delegation)
   const layer = scene.add.rectangle(0, 0, w, h, 0x000000, 0).setOrigin(0, 0)
   container.add(layer)
 
@@ -403,13 +410,13 @@ export function makeScrollRegion(
     const trackLen = h - 10
     const thumbH = Math.min(trackLen, Math.max(14, (h / contentH) * trackLen))
     thumb.setDisplaySize(4, thumbH)
-    // The thumb is centered (origin 0.5, 0.5), so position by its top edge.
     const thumbTop = 5 + (-scrollY / maxScroll) * (trackLen - thumbH)
     thumb.y = thumbTop + thumbH / 2
   }
 
   function applyScroll(): void {
     content.y = scrollY
+    if (interactive) inputContent.y = scrollY
     redraw()
     refreshThumb()
   }
@@ -419,28 +426,110 @@ export function makeScrollRegion(
     applyScroll()
   }
 
-  let dragStartY = 0
-  let dragStartScroll = 0
-  layer.setInteractive({ useHandCursor: false, draggable: true })
+  // Find the topmost interactive button-like object in inputContent at world position
+  function findButtonAt(worldX: number, worldY: number): Phaser.GameObjects.GameObject | null {
+    if (!interactive) return null
+
+    // Recursively search for interactive objects in inputContent's children
+    function searchInteractive(obj: Phaser.GameObjects.GameObject): Phaser.GameObjects.GameObject | null {
+      // Check if this object itself is interactive
+      if (obj.input && obj.input.enabled) {
+        const hitArea = obj.input.hitArea
+        if (hitArea) {
+          // Convert to the object's local coordinates
+          const objWorldMatrix = (obj as Phaser.GameObjects.Rectangle).getWorldTransformMatrix()
+          const objLocalPt = objWorldMatrix.applyInverse(worldX, worldY, new Phaser.Math.Vector2())
+          if (hitArea.contains(objLocalPt.x, objLocalPt.y)) {
+            return obj
+          }
+        }
+      }
+      // If it's a container, search its children
+      if (obj instanceof Phaser.GameObjects.Container) {
+        const children = obj.getAll()
+        for (let i = children.length - 1; i >= 0; i--) {
+          const found = searchInteractive(children[i])
+          if (found) return found
+        }
+      }
+      return null
+    }
+
+    const children = inputContent.getAll()
+    for (let i = children.length - 1; i >= 0; i--) {
+      const found = searchInteractive(children[i])
+      if (found) return found
+    }
+    return null
+  }
+
+  // Wheel handling on layer
+  layer.setInteractive({ useHandCursor: false })
   layer.on(
     'wheel',
     (_pointer: Phaser.Input.Pointer, _deltaX: number, deltaY: number) => {
       setScroll(scrollY - deltaY)
     },
   )
-  layer.on('dragstart', (pointer: Phaser.Input.Pointer) => {
+
+  // Click delegation + drag scrolling on layer
+  let dragStartY = 0
+  let dragStartScroll = 0
+  let isDragging = false
+  let clickTarget: Phaser.GameObjects.GameObject | null = null
+
+  layer.setInteractive({ draggable: false })
+
+  layer.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+    const btn = findButtonAt(pointer.worldX, pointer.worldY)
+    if (btn) {
+      // Click is on a button - delegate click, don't start drag
+      clickTarget = btn
+      // Fire the button's pointerdown so it gets visual feedback
+      btn.emit('pointerdown', pointer)
+      return
+    }
+    // Click is on empty space - start drag scroll
+    isDragging = true
     dragStartY = pointer.y
     dragStartScroll = scrollY
   })
-  layer.on('drag', (pointer: Phaser.Input.Pointer) => {
-    setScroll(dragStartScroll + (pointer.y - dragStartY))
+
+  layer.on('pointermove', (pointer: Phaser.Input.Pointer) => {
+    if (isDragging) {
+      setScroll(dragStartScroll + (pointer.y - dragStartY))
+    } else if (clickTarget) {
+      // Check if pointer moved off the button (cancel click)
+      const btn = findButtonAt(pointer.worldX, pointer.worldY)
+      if (btn !== clickTarget) {
+        clickTarget.emit('pointerout', pointer)
+        clickTarget = null
+      }
+    }
+  })
+
+  layer.on('pointerup', (pointer: Phaser.Input.Pointer) => {
+    if (clickTarget) {
+      // Complete the click on the button
+      clickTarget.emit('pointerup', pointer)
+      clickTarget = null
+    }
+    isDragging = false
+  })
+
+  layer.on('pointerout', (pointer: Phaser.Input.Pointer) => {
+    if (clickTarget) {
+      clickTarget.emit('pointerout', pointer)
+      clickTarget = null
+    }
+    isDragging = false
   })
 
   const topY = (): number => image.getWorldTransformMatrix().getY(0, 0)
 
   return {
     container,
-    content,
+    content: interactive ? inputContent : content,
     layer,
     scrollOffset(): number {
       return scrollY

@@ -162,6 +162,8 @@ export interface ItemDef {
    * Absent / empty = never usable as a reaction. Same rules as `SkillDef`.
    */
   reactionTo?: EventPattern[]
+  /** Free-form tags for town pool weighting and filters (Phase 5 towns). */
+  tags?: string[]
   value: number
 }
 
@@ -273,6 +275,10 @@ export interface PlayerProfile {
   recruitment: RecruitOffer[]
   /** Phase 4.5.2: per-profile scripting library (built-ins seeded on migration). */
   scriptLibrary: CharacterScript[]
+  /** Phase 5: currently selected home town (defaults to 'aldwyn'). */
+  homeTown: string
+  /** Whether the town selection screen has been seen (tutorial flag). */
+  hasSeenTownSelect: boolean
 }
 
 /**

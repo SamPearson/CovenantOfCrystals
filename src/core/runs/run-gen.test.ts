@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { BALANCE, ENEMIES, getEnemy } from '../data'
 import type { ActiveRun, EnemyDef, RunNode, RunNodeType } from '../types'
-import { generateRun, bossMultFor, RUN_LENGTHS } from './run-gen'
+import { generateRun, bossMultFor, RUN_LENGTHS, GenerateRunOptions } from './run-gen'
 import { scaleEnemy } from './enemy-scale'
 
 const ALLOWED_TYPES: RunNodeType[] = ['battle', 'elite', 'rest', 'boss']
@@ -30,42 +30,44 @@ function enemyStats(e: EnemyDef): number {
   return e.stats.hp + e.stats.atk + e.stats.def + e.stats.mag + e.stats.res + e.stats.spd
 }
 
-describe('generateRun', () => {
-  const PROFILE = 'profile-a'
-  const PARTY = ['c1', 'c2', 'c3', 'c4']
+const baseOpts: Omit<GenerateRunOptions, 'length' | 'seed'> = {
+  profileId: 'profile-a',
+  partyIds: ['c1', 'c2', 'c3', 'c4'],
+}
 
+describe('generateRun', () => {
   it('throws for lengths outside the starter set', () => {
     for (const bad of [1, 4, 15, 20, 0, -3, 2.5]) {
-      expect(() => generateRun(PROFILE, PARTY, bad, 123), `length ${bad}`).toThrow(RangeError)
+      expect(() => generateRun({ ...baseOpts, length: bad, seed: 123 }), `length ${bad}`).toThrow(RangeError)
     }
   })
 
   it('accepts every starter length', () => {
     for (const length of RUN_LENGTHS) {
-      expect(() => generateRun(PROFILE, PARTY, length, 1)).not.toThrow()
+      expect(() => generateRun({ ...baseOpts, length, seed: 1 })).not.toThrow()
     }
   })
 
   it('snapshots the party ids', () => {
-    const run = generateRun(PROFILE, ['x', 'y'], 3, 1)
-    expect(run.party).toEqual(['x', 'y'])
+    const run = generateRun({ ...baseOpts, length: 3, seed: 1 })
+    expect(run.party).toEqual(['c1', 'c2', 'c3', 'c4'])
   })
 
   it('produces an identical run for the same seed', () => {
-    const a = generateRun(PROFILE, PARTY, 10, 42)
-    const b = generateRun(PROFILE, PARTY, 10, 42)
+    const a = generateRun({ ...baseOpts, length: 10, seed: 42 })
+    const b = generateRun({ ...baseOpts, length: 10, seed: 42 })
     expect(a).toEqual(b)
   })
 
   it('produces a different run for a different seed', () => {
-    const a = generateRun(PROFILE, PARTY, 10, 42)
-    const b = generateRun(PROFILE, PARTY, 10, 43)
+    const a = generateRun({ ...baseOpts, length: 10, seed: 42 })
+    const b = generateRun({ ...baseOpts, length: 10, seed: 43 })
     expect(a).not.toEqual(b)
   })
 
   it('keeps length invariants: battle slots == length, exactly one boss, boss last', () => {
     for (const length of RUN_LENGTHS) {
-      const run = generateRun(PROFILE, PARTY, length, 7)
+      const run = generateRun({ ...baseOpts, length, seed: 7 })
       const battles = battleNodes(run.nodes)
       expect(battles.length, `length ${length}`).toBe(length)
       const bosses = run.nodes.filter((n) => n.type === 'boss')
@@ -76,7 +78,7 @@ describe('generateRun', () => {
 
   it('uses only the known node types', () => {
     for (const length of RUN_LENGTHS) {
-      for (const node of generateRun(PROFILE, PARTY, length, 7).nodes) {
+      for (const node of generateRun({ ...baseOpts, length, seed: 7 }).nodes) {
         expect(ALLOWED_TYPES).toContain(node.type)
         expect(Number.isInteger(node.index)).toBe(true)
       }
@@ -86,15 +88,15 @@ describe('generateRun', () => {
   it('rest cadence: none at length 3, pre-boss at length 5, after #5 at length 10', () => {
     const restCount = (run: ActiveRun) => run.nodes.filter((n) => n.type === 'rest').length
 
-    const run3 = generateRun(PROFILE, PARTY, 3, 9)
+    const run3 = generateRun({ ...baseOpts, length: 3, seed: 9 })
     expect(restCount(run3)).toBe(0)
 
-    const run5 = generateRun(PROFILE, PARTY, 5, 9)
+    const run5 = generateRun({ ...baseOpts, length: 5, seed: 9 })
     expect(restCount(run5)).toBe(1)
     expect(run5.nodes[run5.nodes.length - 2]!.type).toBe('rest')
     expect(run5.nodes[run5.nodes.length - 1]!.type).toBe('boss')
 
-    const run10 = generateRun(PROFILE, PARTY, 10, 9)
+    const run10 = generateRun({ ...baseOpts, length: 10, seed: 9 })
     expect(restCount(run10)).toBe(2)
     expect(run10.nodes[4]!.type).not.toBe('rest')
     expect(run10.nodes[5]!.type).toBe('rest')
@@ -104,7 +106,7 @@ describe('generateRun', () => {
 
   it('gives every non-boss step 2–3 branching choices; boss has none', () => {
     for (const length of RUN_LENGTHS) {
-      for (const node of generateRun(PROFILE, PARTY, length, 11).nodes) {
+      for (const node of generateRun({ ...baseOpts, length, seed: 11 }).nodes) {
         if (node.type === 'boss') {
           expect(node.choices).toBeUndefined()
         } else {
@@ -122,7 +124,7 @@ describe('generateRun', () => {
 
   it('resolves enemy squads on battle/elite/boss nodes and none on rest', () => {
     for (const length of RUN_LENGTHS) {
-      const run = generateRun(PROFILE, PARTY, length, 5)
+      const run = generateRun({ ...baseOpts, length, seed: 5 })
       for (const node of run.nodes) {
         if (node.type === 'rest') {
           expect(node.enemySquad).toBeUndefined()
@@ -136,7 +138,7 @@ describe('generateRun', () => {
 
   it('squad members match scaleEnemy against the catalog at their node', () => {
     for (const length of RUN_LENGTHS) {
-      const run = generateRun(PROFILE, PARTY, length, 5)
+      const run = generateRun({ ...baseOpts, length, seed: 5 })
       const battles = battleNodes(run.nodes)
       for (const { node, battleIndex } of battles) {
         const mult = multFor(node.type, length)
@@ -151,7 +153,7 @@ describe('generateRun', () => {
 
   it('scales squads up monotonically across a run', () => {
     for (const length of RUN_LENGTHS) {
-      const run = generateRun(PROFILE, PARTY, length, 5)
+      const run = generateRun({ ...baseOpts, length, seed: 5 })
       const battles = battleNodes(run.nodes)
       for (let i = 1; i < battles.length; i++) {
         const prevIdx = battles[i - 1]!.battleIndex
@@ -163,7 +165,7 @@ describe('generateRun', () => {
 
   it('boss squad is the peak of the run', () => {
     for (const length of RUN_LENGTHS) {
-      const run = generateRun(PROFILE, PARTY, length, 5)
+      const run = generateRun({ ...baseOpts, length, seed: 5 })
       const battles = battleNodes(run.nodes)
       const bossNode = battles[battles.length - 1]!.node
       expect(bossNode.type).toBe('boss')
@@ -177,7 +179,7 @@ describe('generateRun', () => {
   })
 
   it('boss is the single goblin king scaled by the boss multiplier', () => {
-    const run = generateRun(PROFILE, PARTY, 10, 5)
+    const run = generateRun({ ...baseOpts, length: 10, seed: 5 })
     const bossNode = run.nodes[run.nodes.length - 1]!
     expect(bossNode.type).toBe('boss')
     expect(bossNode.enemySquad!.length).toBe(1)
@@ -186,7 +188,7 @@ describe('generateRun', () => {
 
   it('keeps the 3-battle-run boss in the level 7–10 band', () => {
     for (const seed of [1, 5, 42, 99, 1234]) {
-      const run = generateRun(PROFILE, PARTY, 3, seed)
+      const run = generateRun({ ...baseOpts, length: 3, seed })
       const boss = run.nodes[run.nodes.length - 1]!
       expect(boss.type).toBe('boss')
       const enemy = boss.enemySquad![0]!

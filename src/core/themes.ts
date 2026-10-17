@@ -44,7 +44,7 @@ export interface ThemeColors {
   textMuted: string
   textDim: string
   textOnAccent: string
-  // semantic
+  // semantic (CSS color strings like '#2ecc71')
   good: string
   warn: string
   bad: string

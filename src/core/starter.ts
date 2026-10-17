@@ -24,6 +24,10 @@ const STARTER_GEAR = [
 export function seedStarterRoster(profile: PlayerProfile): PlayerProfile {
   if (Object.keys(profile.characters).length > 0) return profile
 
+  // Phase 5: Set default home town and town select flag
+  profile.homeTown = 'aldwyn'
+  profile.hasSeenTownSelect = false
+
   ensureBoxCount(profile)
   const rng = createRng(hashString(profile.profileId))
 

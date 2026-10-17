@@ -14,8 +14,9 @@ import { ShopPanel } from '../ui/panels/shop-panel'
 import { RecruitmentPanel } from '../ui/panels/recruitment-panel'
 import { AutomationPanel } from '../ui/panels/automation-panel'
 import { ProfilePanel } from '../ui/panels/profile-panel'
-import type { Panel } from '../ui/panels/panel'
-import { initStore, getProfile, subscribe } from '../../core/store'
+import { TownSelectPanel } from '../ui/panels/town-select-panel'
+import type { PanelRect } from '../ui/panels/panel'
+import { initStore, getProfile, subscribe, getHomeTown } from '../../core/store'
 import {
   isFullscreen,
   isFullscreenSupported,
@@ -23,7 +24,7 @@ import {
   toggleFullscreen,
 } from '../../core/fullscreen'
 
-type PanelId = 'boxes' | 'party' | 'equip' | 'inventory' | 'apply' | 'shop' | 'recruit' | 'automation' | 'profile' | 'theme'
+type PanelId = 'boxes' | 'party' | 'equip' | 'inventory' | 'apply' | 'shop' | 'recruit' | 'automation' | 'profile' | 'theme' | 'townSelect'
 
 /** Tab groups for dropdown organization. */
 type TabGroupId = 'tavern' | 'armory' | 'automation' | 'profile' | 'theme'
@@ -53,6 +54,7 @@ const TAB_LABELS: Record<PanelId, string> = {
   automation: 'Automation',
   profile: 'Profiles',
   theme: 'Theme',
+  townSelect: 'Town',
 }
 
 /**
@@ -63,7 +65,18 @@ const TAB_LABELS: Record<PanelId, string> = {
 let lastActiveTab: PanelId = 'boxes'
 
 export class MetaScene extends Phaser.Scene {
-  private panels!: Record<Exclude<PanelId, 'theme'>, Panel>
+  private panels!: {
+    boxes: BoxesPanel
+    party: PartyPanel
+    equip: EquipPanel
+    inventory: InventoryPanel
+    apply: ApplyPanel
+    shop: ShopPanel
+    recruit: RecruitmentPanel
+    automation: AutomationPanel
+    profile: ProfilePanel
+    townSelect: TownSelectPanel
+  }
   private tabButtons: (Button | Dropdown)[] = []
   private active: PanelId = 'boxes'
   private headerGold!: Phaser.GameObjects.Text
@@ -72,6 +85,7 @@ export class MetaScene extends Phaser.Scene {
   private themeUnsubscribe: (() => void) | null = null
   private themeTimer: Phaser.Time.TimerEvent | null = null
   private fullscreenButton!: Button
+  private townSelectButton!: Button
   private fullscreenUnsubscribe: (() => void) | null = null
 
   constructor() {
@@ -134,11 +148,26 @@ export class MetaScene extends Phaser.Scene {
       { width: 150, height: 32 },
     )
 
+    // Town selection button
+    this.townSelectButton = makeButton(
+      this,
+      width / 2 + 90,
+      8,
+      `Town: ${getHomeTown()}`,
+      () => this.openTownSelect(),
+      {
+        width: 150,
+        height: 32,
+        color: THEME.colors.accentBlue,
+        labelColor: colorHex(THEME.colors.borderLight),
+      },
+    )
+
     // Utility control, so it wears the inactive-tab colors rather than the
     // accent the two action buttons use.
     this.fullscreenButton = makeButton(
       this,
-      width / 2 + 90,
+      width / 2 + 250,
       8,
       'Fullscreen',
       () => void toggleFullscreen(),
@@ -160,7 +189,7 @@ export class MetaScene extends Phaser.Scene {
       this.scale.refresh()
     })
 
-    const contentRect = {
+    const contentRect: PanelRect = {
       x: 10,
       y: THEME.header.height + THEME.tabs.height + 6,
       w: width - 20,
@@ -182,6 +211,10 @@ export class MetaScene extends Phaser.Scene {
         ...contentRect,
         scene: this,
         onProfileChange: () => this.updateHeader(),
+      }),
+      townSelect: new TownSelectPanel(this, contentRect, () => {
+        this.refreshActivePanel()
+        this.townSelectButton?.setLabel(`Town: ${getHomeTown()}`)
       }),
     }
 
@@ -225,12 +258,32 @@ export class MetaScene extends Phaser.Scene {
     this.showTab('equip')
   }
 
+  private openTownSelect(): void {
+    this.panels.townSelect.show()
+    // Hide the currently active panel
+    const currentPanel = this.panels[this.active as keyof typeof this.panels]
+    currentPanel.container.setVisible(false)
+  }
+
+  private refreshActivePanel(): void {
+    if (this.active !== 'theme' && this.active !== 'townSelect') {
+      const currentPanel = this.panels[this.active as keyof typeof this.panels]
+      currentPanel.refresh()
+    }
+  }
+
   private showTab(id: PanelId): void {
     this.active = id
     lastActiveTab = id
     const isTheme = id === 'theme'
-    for (const key of Object.keys(this.panels) as Exclude<PanelId, 'theme'>[]) {
-      this.panels[key].container.setVisible(key === id)
+    const isTownSelect = id === 'townSelect'
+    const panelKeys = Object.keys(this.panels) as (keyof typeof this.panels)[]
+    for (const key of panelKeys) {
+      (this.panels[key] as { container: Phaser.GameObjects.Container }).container.setVisible(key === id)
+    }
+    // Hide townSelect overlay when switching to a regular tab
+    if (!isTownSelect) {
+      this.panels.townSelect.hide()
     }
     if (isTheme) showThemeEditor()
     else hideThemeEditor()
@@ -239,7 +292,10 @@ export class MetaScene extends Phaser.Scene {
     if (isScriptEditorVisible()) hideScriptEditor()
     this.buildTabs(id)
     this.updateHeader()
-    if (!isTheme) this.panels[id].refresh()
+    if (!isTheme && !isTownSelect) {
+      const panel = this.panels[id as keyof typeof this.panels]
+      panel.refresh()
+    }
   }
 
   private buildTabs(active: PanelId): void {
