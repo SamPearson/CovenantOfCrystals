@@ -458,3 +458,214 @@ export function makeScrollRegion(
     },
   }
 }
+
+/**
+ * A dropdown menu button that opens a list of options on click.
+ * Clicking outside closes it.
+ */
+export interface Dropdown {
+  container: Phaser.GameObjects.Container
+  /** The main button element. */
+  button: Phaser.GameObjects.Container
+  /** Set disabled state. */
+  setDisabled(disabled: boolean): void
+  /** Change the button label. */
+  setLabel(label: string): void
+  /** Set the options and their handlers. */
+  setOptions(options: DropdownOption[]): void
+  destroy(): void
+}
+
+export interface DropdownOption {
+  label: string
+  onClick: () => void
+  disabled?: boolean
+  color?: number
+  divider?: boolean
+}
+
+export function makeDropdown(
+  scene: Phaser.Scene,
+  x: number,
+  y: number,
+  label: string,
+  options: DropdownOption[],
+  opts: {
+    width?: number
+    height?: number
+    color?: number
+    labelColor?: string
+    fontSize?: keyof typeof THEME.fonts.size
+    dropdownWidth?: number
+  } = {},
+  parent?: Phaser.GameObjects.Container,
+): Dropdown {
+  const width = opts.width ?? 120
+  const height = opts.height ?? THEME.button.height
+  const baseColor = opts.color ?? THEME.colors.accentBlue
+  const labelColor = opts.labelColor ?? THEME.colors.textOnAccent
+  const fontSize = opts.fontSize ?? 'sm'
+  const dropdownWidth = opts.dropdownWidth ?? Math.max(width, 160)
+
+  const container = scene.add.container(x, y)
+  if (parent) parent.add(container)
+
+  // Main button
+  const buttonContainer = scene.add.container(0, 0)
+  const rect = scene.add.rectangle(width / 2, height / 2, width, height, baseColor).setRounded(THEME.button.radius)
+  const border = scene.add
+    .rectangle(width / 2, height / 2, width, height, 0x000000, 0)
+    .setStrokeStyle(1, THEME.colors.borderLight, 0.6)
+    .setRounded(THEME.button.radius)
+  const text = uiText(scene, 0, 0, label, { size: fontSize, color: labelColor, family: 'display', align: 'center' })
+  text.setOrigin(0.5, 0.5).setPosition(width / 2, height / 2)
+
+  // Arrow indicator
+  const arrow = uiText(scene, width - 18, height / 2, '▼', { size: 'xs', color: labelColor, family: 'display' })
+  arrow.setOrigin(0.5, 0.5)
+
+  buttonContainer.add([rect, border, text, arrow])
+  container.add(buttonContainer)
+
+  let disabled = false
+  let isOpen = false
+  let dropdownContainer: Phaser.GameObjects.Container | null = null
+  let clickOutsideHandler: ((pointer: Phaser.Input.Pointer) => void) | null = null
+
+  function applyDisabled(): void {
+    if (disabled) {
+      rect.setFillStyle(THEME.colors.disabled)
+      text.setColor(THEME.colors.textDim)
+      border.setStrokeStyle(1, THEME.colors.border, 0.4)
+      arrow.setColor(THEME.colors.textDim)
+    } else {
+      rect.setFillStyle(baseColor)
+      text.setColor(labelColor)
+      border.setStrokeStyle(1, THEME.colors.borderLight, 0.6)
+      arrow.setColor(labelColor)
+    }
+  }
+
+  function closeDropdown(): void {
+    if (!isOpen) return
+    isOpen = false
+    if (dropdownContainer) {
+      dropdownContainer.destroy(true)
+      dropdownContainer = null
+    }
+    if (clickOutsideHandler) {
+      scene.input.off('pointerdown', clickOutsideHandler)
+      clickOutsideHandler = null
+    }
+    arrow.setText('▼')
+  }
+
+  function openDropdown(): void {
+    if (isOpen || disabled || options.length === 0) return
+    isOpen = true
+
+    dropdownContainer = scene.add.container(0, height + 2)
+    container.add(dropdownContainer)
+
+    const itemHeight = 28
+    const padding = 4
+    const totalHeight = options.length * itemHeight + padding * 2
+
+    // Background
+    const bg = scene.add
+      .rectangle(dropdownWidth / 2, totalHeight / 2, dropdownWidth, totalHeight, THEME.colors.panel)
+      .setStrokeStyle(1, THEME.colors.border)
+      .setRounded(4)
+    dropdownContainer.add(bg)
+
+    let itemY = padding
+    for (const option of options) {
+      if (option.divider) {
+        const divider = scene.add.rectangle(dropdownWidth / 2, itemY + 4, dropdownWidth - 16, 1, THEME.colors.border, 0.5)
+        dropdownContainer.add(divider)
+        itemY += 10
+        continue
+      }
+
+      const itemContainer = scene.add.container(0, itemY)
+      const itemBg = scene.add
+        .rectangle(dropdownWidth / 2, itemHeight / 2, dropdownWidth, itemHeight, 0x000000, 0)
+        .setInteractive({ useHandCursor: !option.disabled })
+      const itemText = uiText(scene, 12, itemHeight / 2, option.label, {
+        size: 'sm',
+        color: option.disabled ? THEME.colors.textDim : THEME.colors.text,
+      })
+      itemContainer.add([itemBg, itemText])
+      dropdownContainer.add(itemContainer)
+
+      if (!option.disabled) {
+        itemBg.on('pointerover', () => {
+          itemBg.setFillStyle(THEME.colors.hover)
+        })
+        itemBg.on('pointerout', () => {
+          itemBg.setFillStyle(0x000000, 0)
+        })
+        itemBg.on('pointerdown', () => {
+          option.onClick()
+          closeDropdown()
+        })
+      }
+      itemY += itemHeight
+    }
+
+    // Close on click outside
+    arrow.setText('▲')
+    clickOutsideHandler = (pointer: Phaser.Input.Pointer): void => {
+      if (dropdownContainer) {
+        const bounds = dropdownContainer.getBounds()
+        if (!bounds.contains(pointer.x, pointer.y)) {
+          const btnBounds = buttonContainer.getBounds()
+          if (!btnBounds.contains(pointer.x, pointer.y)) {
+            closeDropdown()
+          }
+        }
+      }
+    }
+    scene.input.on('pointerdown', clickOutsideHandler)
+  }
+
+  rect.setInteractive({ useHandCursor: true })
+    .on('pointerover', () => {
+      if (!disabled) rect.setFillStyle(THEME.colors.hover)
+    })
+    .on('pointerout', () => {
+      if (!disabled) rect.setFillStyle(baseColor)
+    })
+    .on('pointerdown', () => {
+      if (!disabled) {
+        if (isOpen) closeDropdown()
+        else openDropdown()
+      }
+    })
+
+  applyDisabled()
+
+  return {
+    container,
+    button: buttonContainer,
+    setDisabled(value: boolean) {
+      disabled = value
+      applyDisabled()
+      if (value) closeDropdown()
+    },
+    setLabel(value: string) {
+      text.setText(value)
+    },
+    setOptions(value: DropdownOption[]) {
+      options = value
+      if (isOpen) {
+        closeDropdown()
+        openDropdown()
+      }
+    },
+    destroy() {
+      closeDropdown()
+      container.destroy(true)
+    },
+  }
+}

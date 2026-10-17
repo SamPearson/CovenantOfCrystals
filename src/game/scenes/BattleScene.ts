@@ -471,10 +471,6 @@ export class BattleScene extends Phaser.Scene {
     })
   }
 
-  private refreshCards(): void {
-    this.renderCards()
-  }
-
   private buildCard(actor: BattleActor, x: number, y: number, w: number): Phaser.GameObjects.Container {
     const t = THEME.colors
     const card = this.add.container(x, y)
@@ -501,12 +497,6 @@ export class BattleScene extends Phaser.Scene {
     const nameText = truncate(actor.name, 16)
     const name = uiText(this, 8, 6, nameText, { size: 'sm', color: nameColor, family: 'display' }, card)
     name.setOrigin(0, 0)
-
-    // Make character name clickable to edit (party only)
-    if (isPlayer && !actor.ko) {
-      name.setInteractive({ useHandCursor: true })
-      name.on('pointerdown', () => this.editCharacterName(actor.id))
-    }
 
     if (actor.defending) {
       makeBadge(this, w - 40, 6, 'DEF', colorHex(t.accentBlue), { width: 32, height: 18 }, card)
@@ -620,40 +610,6 @@ export class BattleScene extends Phaser.Scene {
       const badge = makeBadge(this, px, 60, icon.label, tones[icon.tone] ?? THEME.colors.textMuted, { height: 18 }, card)
       px += badge.width + 4
     }
-  }
-
-  private editCharacterName(actorId: string): void {
-    const profile = getProfile()
-    const ch = profile.characters[actorId]
-    if (!ch) return
-
-    const input = document.createElement('input')
-    input.type = 'text'
-    input.value = ch.name
-    input.maxLength = 16
-    input.style.cssText = `
-      position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
-      padding: 8px 12px; font-size: 14px; border: 2px solid #c9b896;
-      background: #1a1612; color: #e8dfc8; border-radius: 4px; z-index: 10000;
-    `
-    document.body.appendChild(input)
-    input.focus()
-    input.select()
-
-    const submit = () => {
-      const name = input.value.trim()
-      input.remove()
-      if (name && name !== ch.name) {
-        mutate((p) => { p.characters[actorId].name = name })
-        this.refreshCards()
-      }
-    }
-
-    input.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') submit()
-      if (e.key === 'Escape') { input.remove() }
-    })
-    input.addEventListener('blur', submit)
   }
 
   private showEnemyStatsTooltip(actor: BattleActor, card: Phaser.GameObjects.Container): void {
